@@ -1,6 +1,9 @@
 package com.example.payment.dto;
 
 
+import com.example.payment.model.PaymentType;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,11 +16,15 @@ import java.math.BigDecimal;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PaymentRequestDTO {
-    private String userId;
+public final class PaymentRequestDTO {
+    @NotNull
+    @Positive
     private BigDecimal amount;
+    @NotNull
     private String currency;
-    private String paymentType;
+    @NotNull
+    private PaymentType paymentType;
+    @NotNull
     private String email;
 
 

@@ -4,9 +4,9 @@ import com.example.payment.model.PaymentRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PaypalPayment implements PaymentStrategy {
+public class NetBankingPayment implements PaymentStrategy {
 
-    private static final Logger logger = LoggerFactory.getLogger(PaypalPayment.class);
+    private static final Logger logger = LoggerFactory.getLogger(NetBankingPayment.class);
 
 
     @Override

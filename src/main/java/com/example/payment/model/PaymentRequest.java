@@ -18,13 +18,6 @@ public final class PaymentRequest {
     private  BigDecimal amount;
     private  String currency;
     private  String email;
-    private  PaymentType paymentType; // Use enum instead of String
-    private  String userId;
-
-    // Enum for safer payment types
-    public enum PaymentType {
-        NET_BANKING,
-        CARD
-    }
-
+    private  PaymentType paymentType;
+    private  String userName;
 }

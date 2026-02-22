@@ -1,6 +1,7 @@
 package com.example.payment.Util;
 
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -10,6 +11,7 @@ import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.function.Function;
 
 @Component
 public class JWTUtil {
@@ -21,9 +23,10 @@ public class JWTUtil {
         this.secretKey = secretKey;
     }
 
-    public String generateToken(String userName) {
+    public String generateAccessToken(String userName) {
         return Jwts.builder()
                 .setSubject(userName)
+                .claim("type", "ACCESS")
                 .setIssuedAt(new Date())
                 .setExpiration(Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -33,25 +36,55 @@ public class JWTUtil {
     public String generateRefreshToken(String username) {
         return Jwts.builder()
                 .setSubject(username)
+                .claim("type", "refresh")
                 .setIssuedAt(new Date())
                 .setExpiration(Date.from(Instant.now().plus(7, ChronoUnit.DAYS)))
-                .claim("type", "refresh")
                 .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    public boolean validateToken(String jwtToken) {
-        try{
-            Jwts.parserBuilder().setSigningKey(secretKey).build().parseClaimsJws(jwtToken);
-            return true;
+    /* ================= TOKEN VALIDATION ================= */
 
-        }catch (JwtException e){
+    public boolean isTokenValid(String token) {
+        try {
+            extractAllClaims(token); // validates signature + expiry
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
     }
 
-
-    public String extractUsername(String jwtToken) {
-        return Jwts.parserBuilder().setSigningKey(secretKey).build().parseClaimsJws(jwtToken).getBody().getSubject();
+    public boolean isRefreshTokenValid(String token) {
+        return isTokenValid(token) &&
+                "REFRESH".equals(extractClaim(token, c -> c.get("type", String.class)));
     }
+
+    public boolean isAccessTokenValid(String token) {
+        return isTokenValid(token) &&
+                "ACCESS".equals(extractClaim(token, c -> c.get("type", String.class)));
+    }
+
+    /* ================= CLAIM EXTRACTION ================= */
+
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> resolver) {
+        Claims claims = extractAllClaims(token);
+        return resolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(secretKey)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
 }

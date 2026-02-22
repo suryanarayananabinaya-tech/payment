@@ -1,9 +1,11 @@
 package com.example.payment.service;
 
 import com.example.payment.Util.JWTUtil;
+import com.example.payment.dto.AuthResponseDTO;
 import com.example.payment.dto.RegisterRequest;
 import com.example.payment.entity.User;
 import com.example.payment.repository.UserRepository;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -25,27 +27,39 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public Map<String, String> login(String username, String password) {
+    public AuthResponseDTO login(String username, String password) {
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Invalid username"));
+                .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
+
         if(!passwordEncoder.matches(password, user.getPassword())){
-            throw new RuntimeException("Invalid Password");
+            throw new RuntimeException("Invalid username or Password");
         }
 
-        String token = jwtUtil.generateToken(user.getUsername());
-        String refreshToken = jwtUtil.generateToken(user.getUsername());
-        Map<String, String> map = new HashMap<>();
-        map.put("token", token);
-        map.put("refreshToken", refreshToken);
-        return map;
+        String accessToken = jwtUtil.generateAccessToken(user.getUsername());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
+
+        return new  AuthResponseDTO(accessToken, refreshToken);
     }
 
-    public Map<String,String> refreshToken(String refreshToken){
+    public AuthResponseDTO refreshToken(String refreshToken){
+        // 1) Validate refresh token (signature + expiry + type)
+        if (!jwtUtil.isRefreshTokenValid(refreshToken)) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
+        // 2) Extract username
         String username = jwtUtil.extractUsername(refreshToken);
-        String token = jwtUtil.generateToken(username);
-        Map<String,String> map = new HashMap<>();
-        return Map.of("token",token);
+
+        // 3) Ensure user still exists/active
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new BadCredentialsException("Invalid refresh token"));
+
+        // 4) Issue new tokens (rotate refresh token)
+        String newAccessToken = jwtUtil.generateAccessToken(user.getUsername());
+        String newRefreshToken = jwtUtil.generateRefreshToken(user.getUsername());
+
+        return new AuthResponseDTO(newAccessToken, newRefreshToken);
+
     }
 
     public void register(RegisterRequest request) {

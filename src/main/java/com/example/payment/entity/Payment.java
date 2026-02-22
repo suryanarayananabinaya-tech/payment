@@ -1,6 +1,7 @@
 package com.example.payment.entity;
 
-import com.example.payment.model.PaymentRequest;
+import com.example.payment.model.PaymentStatus;
+import com.example.payment.model.PaymentType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,11 +23,8 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
 
     @Column(nullable = false)
     private String currency;
@@ -35,17 +33,18 @@ public class Payment {
     @Column(name = "payment_type", nullable = false)
     private PaymentType paymentType;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status;
+    private PaymentStatus status;
 
+    @Column(name = "transaction_id", unique = true)
     private String transactionId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id")
     private User user;
 
-    public enum PaymentType {
-        CARD,
-        NET_BANKING
-    }
 }

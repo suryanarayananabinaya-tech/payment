@@ -9,6 +9,8 @@ import com.example.payment.entity.Payment;
 import com.example.payment.entity.User;
 import com.example.payment.factory.PaymentFactory;
 import com.example.payment.model.PaymentRequest;
+import com.example.payment.model.PaymentStatus;
+import com.example.payment.model.PaymentType;
 import com.example.payment.observer.PaymentEvent;
 import com.example.payment.proxy.PaymentProxy;
 import com.example.payment.repository.PaymentRepository;
@@ -21,6 +23,7 @@ import com.example.payment.template.PaymentProcessor;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -38,13 +41,16 @@ public class PaymentService {
 
     private final CircuitBreakerRegistry circuitBreakerRegistry;
 
+    private final PaymentFactory paymentFactory;
+
     public PaymentService(ApplicationEventPublisher publisher,
                           PaymentRepository paymentRepository, UserRepository userRepository,
-                          CircuitBreakerRegistry circuitBreakerRegistry) {
+                          CircuitBreakerRegistry circuitBreakerRegistry, PaymentFactory paymentFactory) {
         this.applicationEventPublisher = publisher;
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
         this.circuitBreakerRegistry = circuitBreakerRegistry;
+        this.paymentFactory = paymentFactory;
     }
 
     PaymentStrategy paymentStrategy;
@@ -52,72 +58,81 @@ public class PaymentService {
 
     public PaymentResponseDTO processPayment(String userName , PaymentRequestDTO requestDTO) {
 
-        // =====================
-        // Build Immutable Model
-        // =====================
+        // 1) Validate payment type (DTO already has enum, just null-check)
+        PaymentType type = requestDTO.getPaymentType();
+        if (type == null) {
+            return PaymentResponseDTO.builder()
+                    .status(PaymentStatus.FAILED)
+                    .message("INVALID PAYMENT TYPE")
+                    .amount(requestDTO.getAmount())
+                    .paymentType(null)
+                    .build();
+        }
+
+        // 2) Build immutable domain model
         PaymentRequest request = PaymentRequest.builder()
                 .amount(requestDTO.getAmount())
                 .currency(requestDTO.getCurrency())
                 .email(requestDTO.getEmail())
-                .paymentType(PaymentRequest.PaymentType.valueOf(requestDTO.getPaymentType().toUpperCase()))
-                .userId(userName)
+                .paymentType(type)
+                .userName(userName)
                 .build();
 
-        // Get Strategy
-        try{
-            paymentStrategy = PaymentFactory.getStrategy(String.valueOf(request.getPaymentType()));
-        }catch (IllegalArgumentException e){
-           return PaymentResponseDTO.builder()
-                   .status("FAILED")
-                   .message("INVALID PAYMENT TYPE")
-                   .amount(request.getAmount())
-                   .paymentType(String.valueOf(request.getPaymentType()))
-                   .build();
+        // 3) Select strategy via DI factory
+        PaymentStrategy strategy;
+        try {
+            strategy = paymentFactory.getStrategy(request.getPaymentType());
+        } catch (IllegalArgumentException e) {
+            return PaymentResponseDTO.builder()
+                    .status(PaymentStatus.FAILED)
+                    .message("INVALID PAYMENT TYPE")
+                    .amount(request.getAmount())
+                    .paymentType(request.getPaymentType())
+                    .build();
         }
 
-        //decorator
-        paymentStrategy = new PaymentCircuitBreaker(paymentStrategy,circuitBreakerRegistry, "PaymentCircuit" );
-        paymentStrategy = new PaymentProxy(paymentStrategy);
-        paymentStrategy = new PaymentLogging(paymentStrategy);
+        // 4) Decorators / proxy (optional cross-cutting)
+        strategy = new PaymentProxy(strategy);
+        strategy = new PaymentLogging(strategy);
 
-        //process payment
-        PaymentProcessor processor = new DefaultPaymentProcessor(paymentStrategy);
+        // 5) Template processor
+        PaymentProcessor processor = new DefaultPaymentProcessor(strategy);
+
+        // 6) Execute (circuit breaker via annotation)
         try {
-            // Method annotated for circuit breaker
             executeWithCircuitBreaker(processor, request);
         } catch (RuntimeException ex) {
-            //  If validation or strategy fails, return failure response
             return PaymentResponseDTO.builder()
-                    .status("FAILED")
+                    .status(PaymentStatus.FAILED)
                     .message(ex.getMessage())
                     .amount(request.getAmount())
-                    .paymentType(String.valueOf(request.getPaymentType()))
+                    .paymentType(request.getPaymentType())
                     .build();
         }
         //persist in DB
         Payment payment = new Payment();
         User user = userRepository.findByUsername(userName)
-                .orElseThrow(() -> new RuntimeException("Invalid username or password"));
+                .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
 
         payment.setUser(user); // <-- set User object, not userId
         payment.setTransactionId("TXN-" + System.currentTimeMillis()); // generate unique txn id
         payment.setAmount(request.getAmount());
         payment.setCurrency(request.getCurrency());
-        payment.setPaymentType(com.example.payment.entity.Payment.PaymentType.valueOf(requestDTO.getPaymentType()));
-        payment.setStatus("SUCCESS");
+        payment.setPaymentType(request.getPaymentType());
+        payment.setStatus(PaymentStatus.SUCCESS);
         payment.setCreatedAt(LocalDateTime.now());
 
         paymentRepository.save(payment);
 
-        // observer for Notifications
+        // 8) Observer event
         applicationEventPublisher.publishEvent(new PaymentEvent(request));
 
-        // 7️⃣ Return API Response
+        // 9) API response
         return PaymentResponseDTO.builder()
-                .status("SUCCESS")
+                .status(PaymentStatus.SUCCESS)
                 .message("Payment processed successfully")
                 .amount(request.getAmount())
-                .paymentType(String.valueOf(request.getPaymentType()))
+                .paymentType(request.getPaymentType())
                 .build();
     }
 
