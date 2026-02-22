@@ -2,6 +2,7 @@ package com.example.payment.controller;
 
 import com.example.payment.dto.AuthResponseDTO;
 import com.example.payment.dto.LoginRequestDTO;
+import com.example.payment.dto.RefreshTokenRequestDTO;
 import com.example.payment.dto.RegisterRequest;
 import com.example.payment.service.AuthService;
 import jakarta.validation.Valid;
@@ -37,8 +38,8 @@ public class AuthenticationController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponseDTO> refreshToken(@RequestParam String refreshToken){
-        AuthResponseDTO tokens = authService.refreshToken(refreshToken);
+    public ResponseEntity<AuthResponseDTO> refreshToken(@Valid @RequestBody RefreshTokenRequestDTO refreshTokenRequestDTO){
+        AuthResponseDTO tokens = authService.refreshToken(refreshTokenRequestDTO.getRefreshToken());
         return ResponseEntity.ok(tokens);
     }
 }

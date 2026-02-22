@@ -2,36 +2,33 @@ package com.example.payment.proxy;
 
 import com.example.payment.model.PaymentRequest;
 import com.example.payment.strategy.PaymentStrategy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-public class PaymentProxy  implements PaymentStrategy {
+import java.math.BigDecimal;
 
-    private static final Logger logger  = LoggerFactory.getLogger(PaymentProxy.class);
+public class PaymentProxy implements PaymentStrategy {
 
-    private final  PaymentStrategy paymentStrategy;
+    private final PaymentStrategy paymentStrategy;
 
-    public PaymentProxy(PaymentStrategy PaymentStrategy) {
-        this.paymentStrategy = PaymentStrategy;
+    public PaymentProxy(PaymentStrategy paymentStrategy) {
+        this.paymentStrategy = paymentStrategy;
     }
 
     @Override
     public void pay(PaymentRequest paymentRequest) {
-        if( paymentRequest.getAmount() == null || paymentRequest.getAmount().doubleValue() <= 0 ){
-            logger.error("Payment failed: Amount must be greater than zero");
-            throw new RuntimeException("Amount must be greated than zero");
+
+        BigDecimal amount = paymentRequest.getAmount();
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("Amount must be greater than zero");
         }
-        if (paymentRequest.getEmail() == null || paymentRequest.getEmail().isEmpty()) {
-            logger.error("Payment failed: Email is mandatory");
-            throw new RuntimeException("Email is mandatory");
+
+        if (paymentRequest.getEmail() == null || paymentRequest.getEmail().trim().isEmpty()) {
+            throw new IllegalArgumentException("Email is mandatory");
         }
-        if (paymentRequest.getPaymentType() == null || paymentRequest.getPaymentType().name().isEmpty()) {
-            logger.error("Payment failed: PaymentType is mandatory");
-            throw new RuntimeException("PaymentType is mandatory");
+
+        if (paymentRequest.getPaymentType() == null) {
+            throw new IllegalArgumentException("PaymentType is mandatory");
         }
-        logger.info("Payment request passed validation checks");
+
         paymentStrategy.pay(paymentRequest);
-
-
     }
 }

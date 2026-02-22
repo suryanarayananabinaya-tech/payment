@@ -36,7 +36,7 @@ public class JWTUtil {
     public String generateRefreshToken(String username) {
         return Jwts.builder()
                 .setSubject(username)
-                .claim("type", "refresh")
+                .claim("type", "REFRESH")
                 .setIssuedAt(new Date())
                 .setExpiration(Date.from(Instant.now().plus(7, ChronoUnit.DAYS)))
                 .signWith(secretKey, SignatureAlgorithm.HS256)
@@ -55,8 +55,10 @@ public class JWTUtil {
     }
 
     public boolean isRefreshTokenValid(String token) {
-        return isTokenValid(token) &&
+        boolean isValid = false;
+        isValid = isTokenValid(token) &&
                 "REFRESH".equals(extractClaim(token, c -> c.get("type", String.class)));
+        return isValid;
     }
 
     public boolean isAccessTokenValid(String token) {

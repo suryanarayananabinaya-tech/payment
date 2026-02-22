@@ -33,7 +33,7 @@ public class AuthService {
                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
 
         if(!passwordEncoder.matches(password, user.getPassword())){
-            throw new RuntimeException("Invalid username or Password");
+            throw new IllegalArgumentException("Invalid username or Password");
         }
 
         String accessToken = jwtUtil.generateAccessToken(user.getUsername());
@@ -64,7 +64,7 @@ public class AuthService {
 
     public void register(RegisterRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("Username already exists");
+            throw new IllegalArgumentException("Username already exists");
         }
         User user = new User();
         user.setUsername(request.getUsername());

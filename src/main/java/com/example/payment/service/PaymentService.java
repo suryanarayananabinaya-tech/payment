@@ -7,6 +7,7 @@ import com.example.payment.dto.PaymentRequestDTO;
 import com.example.payment.dto.PaymentResponseDTO;
 import com.example.payment.entity.Payment;
 import com.example.payment.entity.User;
+import com.example.payment.exception.ExternalServiceException;
 import com.example.payment.factory.PaymentFactory;
 import com.example.payment.model.PaymentRequest;
 import com.example.payment.model.PaymentStatus;
@@ -58,15 +59,10 @@ public class PaymentService {
 
     public PaymentResponseDTO processPayment(String userName , PaymentRequestDTO requestDTO) {
 
-        // 1) Validate payment type (DTO already has enum, just null-check)
+        // 1) Validate payment type
         PaymentType type = requestDTO.getPaymentType();
         if (type == null) {
-            return PaymentResponseDTO.builder()
-                    .status(PaymentStatus.FAILED)
-                    .message("INVALID PAYMENT TYPE")
-                    .amount(requestDTO.getAmount())
-                    .paymentType(null)
-                    .build();
+            throw new IllegalArgumentException("INVALID PAYMENT TYPE");
         }
 
         // 2) Build immutable domain model
@@ -79,19 +75,10 @@ public class PaymentService {
                 .build();
 
         // 3) Select strategy via DI factory
-        PaymentStrategy strategy;
-        try {
-            strategy = paymentFactory.getStrategy(request.getPaymentType());
-        } catch (IllegalArgumentException e) {
-            return PaymentResponseDTO.builder()
-                    .status(PaymentStatus.FAILED)
-                    .message("INVALID PAYMENT TYPE")
-                    .amount(request.getAmount())
-                    .paymentType(request.getPaymentType())
-                    .build();
-        }
+        PaymentStrategy strategy = paymentFactory.getStrategy(request.getPaymentType());
 
-        // 4) Decorators / proxy (optional cross-cutting)
+
+        // 4) Decorators / proxy
         strategy = new PaymentProxy(strategy);
         strategy = new PaymentLogging(strategy);
 
@@ -99,23 +86,17 @@ public class PaymentService {
         PaymentProcessor processor = new DefaultPaymentProcessor(strategy);
 
         // 6) Execute (circuit breaker via annotation)
-        try {
-            executeWithCircuitBreaker(processor, request);
-        } catch (RuntimeException ex) {
-            return PaymentResponseDTO.builder()
-                    .status(PaymentStatus.FAILED)
-                    .message(ex.getMessage())
-                    .amount(request.getAmount())
-                    .paymentType(request.getPaymentType())
-                    .build();
-        }
+
+        executeWithCircuitBreaker(processor, request);
+
         //persist in DB
         Payment payment = new Payment();
         User user = userRepository.findByUsername(userName)
                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
 
-        payment.setUser(user); // <-- set User object, not userId
-        payment.setTransactionId("TXN-" + System.currentTimeMillis()); // generate unique txn id
+        payment.setUser(user);
+        String transactionId = "TXN-" + System.currentTimeMillis();
+        payment.setTransactionId(transactionId); // generate unique txn id
         payment.setAmount(request.getAmount());
         payment.setCurrency(request.getCurrency());
         payment.setPaymentType(request.getPaymentType());
@@ -132,7 +113,9 @@ public class PaymentService {
                 .status(PaymentStatus.SUCCESS)
                 .message("Payment processed successfully")
                 .amount(request.getAmount())
+                .currency(request.getCurrency())
                 .paymentType(request.getPaymentType())
+                .transactionId(transactionId)
                 .build();
     }
 
@@ -142,7 +125,7 @@ public class PaymentService {
     }
 
     public void fallbackPayment(PaymentProcessor processor, PaymentRequest request, Throwable t) {
-        throw new RuntimeException("External payment service unavailable. Try later.");
+        throw new ExternalServiceException("External payment service unavailable. Try later.");
     }
 
     public void generateReport() {

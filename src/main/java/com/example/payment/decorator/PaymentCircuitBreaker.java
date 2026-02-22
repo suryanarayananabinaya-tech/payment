@@ -1,6 +1,7 @@
 package com.example.payment.decorator;
 
 import com.example.payment.model.PaymentRequest;
+import com.example.payment.model.PaymentType;
 import com.example.payment.strategy.PaymentStrategy;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -21,14 +22,13 @@ public class PaymentCircuitBreaker implements PaymentStrategy {
         this.circuitBreaker = registry.circuitBreaker(circuitName);
     }
 
-
     @Override
     public void pay(PaymentRequest paymentRequest) {
         try{
             circuitBreaker.executeRunnable(() -> paymentStrategy.pay(paymentRequest));
         }catch (Exception e){
             logger.error("Payment failed via circuit breaker", e);
-            throw new RuntimeException("External payment service unavailable. Try later.");
+            throw new IllegalArgumentException("External payment service unavailable. Try later.");
         }
 
     }

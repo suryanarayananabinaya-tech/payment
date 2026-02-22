@@ -27,15 +27,15 @@ public class PaymentController {
 
      @PostMapping
      @PreAuthorize("hasRole('USER')")
-     public ResponseEntity<PaymentResponseDTO> createPayment(@RequestBody PaymentRequestDTO requestDTO) {
+     public PaymentResponseDTO createPayment(@RequestBody PaymentRequestDTO requestDTO) {
          Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
          if (authentication == null || !authentication.isAuthenticated()
                  || "anonymousUser".equals(authentication.getPrincipal())) {
-             return ResponseEntity.status(401).build();
+             throw new org.springframework.security.access.AccessDeniedException("Unauthorized");
          }
        String username = authentication.getName();
-       PaymentResponseDTO responseDTO = paymentService.processPayment(username, requestDTO);
-       return ResponseEntity.ok(responseDTO);
+       return paymentService.processPayment(username, requestDTO);
+
      }
 
 }

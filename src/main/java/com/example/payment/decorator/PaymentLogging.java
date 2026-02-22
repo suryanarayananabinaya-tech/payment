@@ -17,11 +17,10 @@ public record PaymentLogging(PaymentStrategy delegate) implements PaymentStrateg
         long start = System.currentTimeMillis();
         try {
             delegate.pay(paymentRequest);
+            logger.info("Payment request finished successfully");
+        } finally {
             long duration = System.currentTimeMillis() - start;
-            logger.info("Payment request finished successfully in {} ms", duration);
-        } catch (Exception e) {
-            logger.error("Payment request failed", e);
-            throw e;
+            logger.info("Payment request duration: {} ms", duration);
         }
     }
 }

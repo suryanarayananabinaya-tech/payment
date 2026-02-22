@@ -1,13 +1,21 @@
 package com.example.payment.strategy;
 
 import com.example.payment.model.PaymentRequest;
+import com.example.payment.model.PaymentType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
-public class NetBankingPayment implements PaymentStrategy {
+@Component
+public class NetBankingPayment implements TypedPaymentStrategy {
 
     private static final Logger logger = LoggerFactory.getLogger(NetBankingPayment.class);
 
+
+    @Override
+    public PaymentType getType() {
+        return PaymentType.NET_BANKING;
+    }
 
     @Override
     public void pay(PaymentRequest paymentRequest) {
