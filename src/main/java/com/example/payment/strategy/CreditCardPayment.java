@@ -14,7 +14,7 @@ public class CreditCardPayment implements PaymentStrategy{
 
         logger.info("Processing payment of {} {} using Credit Card for email {}",
                 paymentRequest.getAmount(), paymentRequest.getCurrency(), paymentRequest.getEmail());
-        // Here you can integrate with PayPal API/SDK
+        // Here we can integrate with PayPal API/SDK
         logger.info("Credit card payment completed successfully");
 
     }

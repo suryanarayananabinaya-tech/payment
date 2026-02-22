@@ -5,19 +5,15 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PaymentResponseDTO {
+public class RegisterRequest {
 
 
-    private String status;
-    private String message;
-    private BigDecimal amount;
-    private String paymentType;
-
+        private String username;
+        private String email;
+        private String password;
 
 }

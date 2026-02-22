@@ -15,5 +15,6 @@ public class EmailListener {
         logger.info("Email sent to {} for amount {}",
                 event.getPaymentRequest().getEmail(),
                 event.getPaymentRequest().getAmount());
+        // TODO: Call actual email service here
     }
 }

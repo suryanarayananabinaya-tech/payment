@@ -17,13 +17,17 @@ public class PaymentProxy  implements PaymentStrategy {
 
     @Override
     public void pay(PaymentRequest paymentRequest) {
-        if( paymentRequest.getAmount() <= 0 ){
+        if( paymentRequest.getAmount() == null || paymentRequest.getAmount().doubleValue() <= 0 ){
             logger.error("Payment failed: Amount must be greater than zero");
             throw new RuntimeException("Amount must be greated than zero");
         }
         if (paymentRequest.getEmail() == null || paymentRequest.getEmail().isEmpty()) {
             logger.error("Payment failed: Email is mandatory");
             throw new RuntimeException("Email is mandatory");
+        }
+        if (paymentRequest.getPaymentType() == null || paymentRequest.getPaymentType().name().isEmpty()) {
+            logger.error("Payment failed: PaymentType is mandatory");
+            throw new RuntimeException("PaymentType is mandatory");
         }
         logger.info("Payment request passed validation checks");
         paymentStrategy.pay(paymentRequest);

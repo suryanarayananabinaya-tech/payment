@@ -11,8 +11,10 @@ public class SMSListener {
     private static final Logger logger = LoggerFactory.getLogger(SMSListener.class);
 
     @EventListener
-    public void sendSMS(PaymentEvent event) {
-        logger.info("SMS sent for amount {} to {}",
-                event.getPaymentRequest().getEmail(), event.getPaymentRequest().getAmount());
+    public void sendSms(PaymentEvent event) {
+        logger.info("SMS sent to {} for amount {}",
+                event.getPaymentRequest().getEmail(),
+                event.getPaymentRequest().getAmount());
+        // TODO: Call actual SMS gateway here
     }
 }

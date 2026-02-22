@@ -1,25 +1,43 @@
 package com.example.payment.Util;
 
 
-import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import org.springframework.stereotype.Component;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
 @Component
 public class JWTUtil {
 
 
-    private final Key secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
-    private final long expiration =  1000*60*60;
+    private final SecretKey secretKey;
+
+    public JWTUtil(SecretKey secretKey) {
+        this.secretKey = secretKey;
+    }
 
     public String generateToken(String userName) {
         return Jwts.builder()
                 .setSubject(userName)
-                .setExpiration(new Date(System.currentTimeMillis()+ expiration))
-                .signWith(secretKey).compact();
+                .setIssuedAt(new Date())
+                .setExpiration(Date.from(Instant.now().plus(15, ChronoUnit.MINUTES)))
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public String generateRefreshToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(Date.from(Instant.now().plus(7, ChronoUnit.DAYS)))
+                .claim("type", "refresh")
+                .signWith(secretKey, SignatureAlgorithm.HS256)
+                .compact();
     }
 
     public boolean validateToken(String jwtToken) {
@@ -31,6 +49,7 @@ public class JWTUtil {
             return false;
         }
     }
+
 
     public String extractUsername(String jwtToken) {
         return Jwts.parserBuilder().setSigningKey(secretKey).build().parseClaimsJws(jwtToken).getBody().getSubject();

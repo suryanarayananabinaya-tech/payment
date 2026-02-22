@@ -9,12 +9,19 @@ public record PaymentLogging(PaymentStrategy delegate) implements PaymentStrateg
 
     private static final Logger logger = LoggerFactory.getLogger(PaymentLogging.class);
 
-
     @Override
     public void pay(PaymentRequest paymentRequest) {
-        logger.info("Payment request started");
-        delegate.pay(paymentRequest);
-        logger.info("Payment request finished");
+        logger.info("Payment request started for user: {} amount: {} {}",
+                paymentRequest.getEmail(), paymentRequest.getAmount(), paymentRequest.getCurrency());
 
+        long start = System.currentTimeMillis();
+        try {
+            delegate.pay(paymentRequest);
+            long duration = System.currentTimeMillis() - start;
+            logger.info("Payment request finished successfully in {} ms", duration);
+        } catch (Exception e) {
+            logger.error("Payment request failed", e);
+            throw e;
+        }
     }
 }
