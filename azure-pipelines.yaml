@@ -6,20 +6,15 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
-# ✅ Option A (recommended): use a Variable Group
-# Create a variable group (Library) named: payment-dev-secrets
-# with secrets:
-#   JWT_SECRET, DB_USERNAME, DB_PASSWORD, APPINSIGHTS_CONNECTION_STRING
 variables:
   - group: vg-payment-dev-secrets
 
-  # Non-secret variables can stay here
   - name: azureSubscription
-    value: 'Abinaya-Azure-dev-Connection'   # <-- CHANGE
+    value: 'Abinaya-Azure-dev-Connection'
   - name: appName
-    value: 'springboot-d-appService'          # <-- CHANGE
+    value: 'springboot-d-appService'
   - name: resourceGroupName
-    value: 'springboot-rg-dev'                   # <-- CHANGE
+    value: 'springboot-rg-dev'
   - name: artifactName
     value: 'drop'
   - name: javaVersion
@@ -49,11 +44,11 @@ stages:
               Contents: '**/target/*.jar'
               TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
-          - task: PublishBuildArtifacts@1
-            displayName: 'Publish build artifacts'
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish pipeline artifact'
             inputs:
-              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-              ArtifactName: '$(artifactName)'
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: '$(artifactName)'
 
   - stage: Deploy
     displayName: Deploy to Azure App Service (DEV)
@@ -66,10 +61,13 @@ stages:
           runOnce:
             deploy:
               steps:
-                - download: current
-                  artifact: $(artifactName)
+                # ✅ Explicit pipeline artifact download (fixes your error)
+                - task: DownloadPipelineArtifact@2
+                  displayName: 'Download pipeline artifact'
+                  inputs:
+                    artifact: '$(artifactName)'
+                    path: '$(Pipeline.Workspace)/$(artifactName)'
 
-                # ✅ Push appsettings to App Service (DEV)
                 - task: AzureAppServiceSettings@1
                   displayName: 'Configure App Service settings (DEV)'
                   inputs:
@@ -94,7 +92,6 @@ stages:
                         { "name": "APPLICATIONINSIGHTS_ROLE_NAME", "value": "payment-service-dev", "slotSetting": false }
                       ]
 
-                # ✅ Deploy the JAR
                 - task: AzureWebApp@1
                   displayName: 'Deploy JAR to App Service (DEV)'
                   inputs:
