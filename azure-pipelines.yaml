@@ -12,7 +12,7 @@ variables:
   - name: azureSubscription
     value: 'Abinaya-Azure-dev-Connection'
   - name: appName
-    value: 'springboot-d-appService'
+    value: 'dev-abinaya-eastus-webapp'
   - name: resourceGroupName
     value: 'springboot-rg-dev'
   - name: artifactName
