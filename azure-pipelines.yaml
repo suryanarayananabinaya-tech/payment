@@ -23,7 +23,7 @@ variables:
   - name: artifactName
     value: 'drop'
   - name: javaVersion
-    value: '17'
+    value: '21'
 
 stages:
   - stage: Build
