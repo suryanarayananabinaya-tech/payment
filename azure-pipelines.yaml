@@ -1,0 +1,103 @@
+trigger:
+  branches:
+    include:
+      - dev
+
+pool:
+  vmImage: ubuntu-latest
+
+# ✅ Option A (recommended): use a Variable Group
+# Create a variable group (Library) named: payment-dev-secrets
+# with secrets:
+#   JWT_SECRET, DB_USERNAME, DB_PASSWORD, APPINSIGHTS_CONNECTION_STRING
+variables:
+  - group: vg-payment-dev-secrets
+
+  # Non-secret variables can stay here
+  - name: azureSubscription
+    value: 'Abinaya-Azure-dev-Connection'   # <-- CHANGE
+  - name: appName
+    value: 'springboot-d-appService'          # <-- CHANGE
+  - name: resourceGroupName
+    value: 'springboot-rg-dev'                   # <-- CHANGE
+  - name: artifactName
+    value: 'drop'
+  - name: javaVersion
+    value: '17'
+
+stages:
+  - stage: Build
+    displayName: Build (DEV)
+    jobs:
+      - job: BuildJob
+        displayName: Maven Build
+        steps:
+          - task: Maven@4
+            displayName: 'Maven: clean package'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'clean package'
+              options: '-DskipTests'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.$(javaVersion)'
+              publishJUnitResults: false
+
+          - task: CopyFiles@2
+            displayName: 'Copy JAR to artifact staging'
+            inputs:
+              SourceFolder: '$(System.DefaultWorkingDirectory)'
+              Contents: '**/target/*.jar'
+              TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish build artifacts'
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: '$(artifactName)'
+
+  - stage: Deploy
+    displayName: Deploy to Azure App Service (DEV)
+    dependsOn: Build
+    jobs:
+      - deployment: DeployJob
+        displayName: Deploy DEV
+        environment: dev
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: $(artifactName)
+
+                # ✅ Push appsettings to App Service (DEV)
+                - task: AzureAppServiceSettings@1
+                  displayName: 'Configure App Service settings (DEV)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    appName: $(appName)
+                    resourceGroupName: $(resourceGroupName)
+                    appSettings: |
+                      [
+                        { "name": "SPRING_PROFILES_ACTIVE", "value": "dev", "slotSetting": false },
+                      
+                        { "name": "JWT_SECRET", "value": "$(JWT_SECRET)", "slotSetting": true },
+                        { "name": "DB_USERNAME", "value": "$(DB_USERNAME)", "slotSetting": true },
+                        { "name": "DB_PASSWORD", "value": "$(DB_PASSWORD)", "slotSetting": true },
+                      
+                        { "name": "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "value": "health,info,metrics", "slotSetting": false },
+                        { "name": "MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS", "value": "always", "slotSetting": false },
+                      
+                        { "name": "LOGGING_LEVEL_ROOT", "value": "INFO", "slotSetting": false },
+                        { "name": "LOGGING_LEVEL_COM_EXAMPLE_PAYMENT", "value": "INFO", "slotSetting": false },
+                      
+                        { "name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "value": "$(APPINSIGHTS_CONNECTION_STRING)", "slotSetting": true },
+                        { "name": "APPLICATIONINSIGHTS_ROLE_NAME", "value": "payment-service-dev", "slotSetting": false }
+                      ]
+
+                # ✅ Deploy the JAR
+                - task: AzureWebApp@1
+                  displayName: 'Deploy JAR to App Service (DEV)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    appName: $(appName)
+                    package: '$(Pipeline.Workspace)/$(artifactName)/**/*.jar'
