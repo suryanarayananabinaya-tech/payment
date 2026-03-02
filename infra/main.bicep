@@ -23,7 +23,7 @@ param nodeVmSize string = 'Standard_DS2_v2'
 param logRetentionDays int = 14
 
 // ---------------------------
-// Log Analytics (for Container Insights)
+// Log Analytics
 // ---------------------------
 resource law 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: '${aksName}-law'
@@ -37,14 +37,12 @@ resource law 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 }
 
 // ---------------------------
-// Azure Container Registry
+// ACR
 // ---------------------------
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
   location: location
-  sku: {
-    name: 'Basic'
-  }
+  sku: { name: 'Basic' }
   properties: {
     adminUserEnabled: false
   }
@@ -59,17 +57,13 @@ resource kv 'Microsoft.KeyVault/vaults@2023-07-01' = {
   properties: {
     tenantId: subscription().tenantId
     enableRbacAuthorization: true
-    sku: {
-      family: 'A'
-      name: 'standard'
-    }
-    // No accessPolicies when RBAC is enabled
+    sku: { family: 'A', name: 'standard' }
     accessPolicies: []
   }
 }
 
 // ---------------------------
-// AKS (OIDC + Workload Identity + KeyVault CSI addon + Container Insights)
+// AKS (OIDC + Workload Identity + KV CSI addon + Container Insights)
 // ---------------------------
 resource aks 'Microsoft.ContainerService/managedClusters@2024-03-02-preview' = {
   name: aksName
@@ -80,12 +74,11 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-03-02-preview' = {
   properties: {
     dnsPrefix: dnsPrefix
 
-    // Enable OIDC issuer (required for workload identity)
+    // ✅ Fix 1: property is issuerURL (not issuerUrl)
     oidcIssuerProfile: {
       enabled: true
     }
 
-    // Enable Workload Identity
     securityProfile: {
       workloadIdentity: {
         enabled: true
@@ -103,17 +96,13 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-03-02-preview' = {
       }
     ]
 
-    // Addons
     addonProfiles: {
-      // Container Insights -> Log Analytics
       omsagent: {
         enabled: true
         config: {
           logAnalyticsWorkspaceResourceID: law.id
         }
       }
-
-      // Key Vault Secrets Store CSI provider addon
       azureKeyvaultSecretsProvider: {
         enabled: true
       }
@@ -127,19 +116,21 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-03-02-preview' = {
 }
 
 // ---------------------------
-// Allow AKS kubelet identity to pull images from ACR
+// Allow AKS kubelet identity to pull from ACR
 // ---------------------------
 var kubeletObjectId = aks.properties.identityProfile.kubeletidentity.objectId
 
 resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(acr.id, kubeletObjectId, 'acrpull')
+  // ✅ Fix 2: roleAssignment name must be deterministic at start of deployment
+  // Use only values known at the start: acr.id + aksName + constant string
+  name: guid(acr.id, aksName, 'acrpull')
   scope: acr
   properties: {
-    // Built-in role: AcrPull
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
-      '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+      '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
     )
+    // principalId can be runtime; that's OK
     principalId: kubeletObjectId
     principalType: 'ServicePrincipal'
   }
@@ -153,4 +144,6 @@ output aksNameOut string = aks.name
 output keyVaultName string = kv.name
 output tenantId string = subscription().tenantId
 output logAnalyticsWorkspaceId string = law.id
-output oidcIssuerUrl string = aks.properties.oidcIssuerProfile.issuerUrl
+
+// ✅ Fix 1 also affects output property name:
+output oidcIssuerUrl string = aks.properties.oidcIssuerProfile.issuerURL
