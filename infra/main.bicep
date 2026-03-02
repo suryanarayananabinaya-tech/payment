@@ -20,7 +20,7 @@ param nodeCount int = 2
 param nodeVmSize string = 'Standard_DS2_v2'
 
 @description('Log Analytics retention in days')
-param logRetentionDays int = 14
+param logRetentionDays int = 30
 
 // ---------------------------
 // Log Analytics
