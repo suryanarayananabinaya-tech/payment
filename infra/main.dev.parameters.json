@@ -10,7 +10,7 @@
 
     "dnsPrefix": { "value": "payaksdev" },
     "nodeCount": { "value": 2 },
-    "nodeVmSize": { "value": "Standard_DS2_v2" },
+    "nodeVmSize": { "value": "Standard_B2s" },
 
     "logRetentionDays": { "value": 14 }
   }
