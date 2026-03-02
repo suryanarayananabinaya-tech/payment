@@ -12,6 +12,6 @@
     "nodeCount": { "value": 2 },
     "nodeVmSize": { "value": "Standard_B2s" },
 
-    "logRetentionDays": { "value": 14 }
+    "logRetentionDays": { "value": 30 }
   }
 }
