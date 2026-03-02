@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "value": "eastus" },
+
+    "aksName": { "value": "pay-aks-dev" },
+    "acrName": { "value": "payacrdev12345" },
+    "kvName": { "value": "pay-kv-dev-12345" },
+
+    "dnsPrefix": { "value": "payaksdev" },
+    "nodeCount": { "value": 2 },
+    "nodeVmSize": { "value": "Standard_DS2_v2" },
+
+    "logRetentionDays": { "value": 14 }
+  }
+}
