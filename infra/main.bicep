@@ -17,7 +17,7 @@ param dnsPrefix string = 'payaksdev'
 param nodeCount int = 2
 
 @description('Node VM size')
-param nodeVmSize string = 'Standard_DS2_v2'
+param nodeVmSize string = 'Standard_D2s_v3'
 
 @description('Log Analytics retention in days')
 param logRetentionDays int = 30
