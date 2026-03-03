@@ -24,7 +24,7 @@ spec:
               secretProviderClass: "payment-kv"
       containers:
         - name: payment-service
-          image: PLACEHOLDER_IMAGE
+          image: payacrdev12345.azurecr.io/payment-service:1.0.0
           ports:
             - containerPort: 8080
           volumeMounts:
