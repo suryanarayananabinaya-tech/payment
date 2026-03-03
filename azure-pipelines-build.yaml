@@ -1,0 +1,48 @@
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureSubscription: 'Abinaya-Azure-dev-Connection'
+  resourceGroup: 'springboot-rg-dev'
+  acrName: 'payacrdev12345'
+  imageName: 'payment-service'
+  imageTag: '1.0.0'
+
+stages:
+  - stage: BuildPush
+    displayName: "Build & Push Image to ACR"
+    jobs:
+      - job: Build
+        displayName: "Docker build + push"
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: "Login to ACR"
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                az acr login -n $(acrName)
+                az acr show -g $(resourceGroup) -n $(acrName) --query loginServer -o tsv
+
+          # Build and push using Azure CLI (ACR build runs in Azure, no Docker needed on agent)
+          - task: AzureCLI@2
+            displayName: "ACR Build (build in cloud) + Push"
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                echo "Starting ACR build..."
+                az acr build \
+                  -g $(resourceGroup) \
+                  -r $(acrName) \
+                  -t $(imageName):$(imageTag) \
+                  .
+                echo "Done."
