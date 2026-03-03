@@ -1,0 +1,54 @@
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureSubscription: 'Abinaya-Azure-dev-Connection'
+  resourceGroup: 'springboot-rg-dev'
+  location: 'eastus'
+  aksName: 'pay-aks-dev'
+  kvName: 'pay-kv-dev-12345'
+  uamiName: 'pay-uami-dev'
+  namespace: 'dev'
+  serviceAccount: 'payment-sa'
+
+stages:
+  - stage: Identity
+    displayName: 'Create Workload Identity + KV Access'
+    jobs:
+      - job: CreateIdentity
+        displayName: 'UAMI + Federated Credential + KV RBAC'
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: 'Create UAMI and print IDs'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                
+                # 1) Create UAMI (idempotent)
+                if az identity show -g "$(resourceGroup)" -n "$(uamiName)" >/dev/null 2>&1; then
+                  echo "UAMI exists: $(uamiName)"
+                else
+                  az identity create -g "$(resourceGroup)" -n "$(uamiName)" -l "$(location)"
+                  echo "Created UAMI: $(uamiName)"
+                fi
+                
+                UAMI_CLIENT_ID=$(az identity show -g "$(resourceGroup)" -n "$(uamiName)" --query clientId -o tsv)
+                UAMI_PRINCIPAL_ID=$(az identity show -g "$(resourceGroup)" -n "$(uamiName)" --query principalId -o tsv)
+                TENANT_ID=$(az account show --query tenantId -o tsv)
+                
+                echo "UAMI_CLIENT_ID=$UAMI_CLIENT_ID"
+                echo "UAMI_PRINCIPAL_ID=$UAMI_PRINCIPAL_ID"
+                echo "TENANT_ID=$TENANT_ID"
+                
+                # Pipeline variables for next steps/stages
+                echo "##vso[task.setvariable variable=UAMI_CLIENT_ID;isOutput=true]$UAMI_CLIENT_ID"
+                echo "##vso[task.setvariable variable=UAMI_PRINCIPAL_ID;isOutput=true]$UAMI_PRINCIPAL_ID"
+                echo "##vso[task.setvariable variable=TENANT_ID;isOutput=true]$TENANT_ID"
+            name: out
