@@ -14,34 +14,44 @@ The service simulates a production-style payment processing backend and demonstr
 
 ---
 
-# Architecture
+# Architecture Diagram
 
-Client Application  
-↓  
-Spring Boot REST API  
-↓  
-Controller Layer  
-↓  
-Service Layer  
-↓  
-Business Logic (Design Patterns)  
-↓  
-Repository Layer  
-↓  
-Database  
+```mermaid
+flowchart TD
 
-Deployment Flow
+A[Client Application] --> B[Spring Boot REST API]
 
-Developer  
-↓  
-Git Repository  
-↓  
-Azure DevOps CI/CD Pipeline  
-↓  
-Docker Image Build  
-↓  
-Azure Infrastructure Deployment (Bicep)  
-↓  
+B --> C[Authentication Controller]
+C --> D[JWT Authentication]
+D --> E[Security Filter]
+
+E --> F[Controller Layer]
+F --> G[Service Layer]
+
+G --> H[Business Logic & Design Patterns]
+
+H --> I[Repository Layer]
+I --> J[(Database)]
+
+subgraph Cloud Deployment
+K[Docker Container]
+L[Kubernetes Cluster]
+M[Azure App Service]
+end
+
+B --> K
+K --> L
+L --> M
+
+subgraph DevOps Pipeline
+N[Git Repository]
+O[Azure DevOps Pipeline]
+end
+
+N --> O
+O --> K
+```
+
 Application Deployment to Azure App Service / Kubernetes
 
 ---
