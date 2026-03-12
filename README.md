@@ -46,6 +46,39 @@ Azure Infrastructure Provisioned via Bicep
 
 ---
 
+# Architecture Diagram
+
+```mermaid
+flowchart TD
+
+A[Client Application] --> B[Spring Boot REST API]
+
+B --> C[Controller Layer]
+C --> D[Service Layer]
+
+D --> E[Business Logic]
+
+E --> F[Repository Layer]
+F --> G[(Database)]
+
+subgraph Cloud Deployment
+H[Docker Container]
+I[Kubernetes Cluster]
+J[Azure Infrastructure]
+end
+
+B --> H
+H --> I
+I --> J
+
+subgraph DevOps
+K[Git Repository]
+L[Azure DevOps Pipeline]
+end
+
+K --> L
+L --> H
+```
 # Tech Stack
 
 Backend
