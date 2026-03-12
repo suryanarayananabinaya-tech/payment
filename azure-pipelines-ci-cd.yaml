@@ -1,0 +1,86 @@
+trigger:
+  - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureSubscription: 'Abinaya-Azure-dev-Connection'
+  resourceGroup: 'springboot-rg-dev'
+  aksName: 'pay-aks-dev'
+  acrName: 'payacrdev12345'
+  namespace: 'dev'
+  imageName: 'payment-service'
+  imageTag: '$(Build.BuildId)'
+
+stages:
+  # -----------------------
+  # CI: Build + Push Image
+  # -----------------------
+  - stage: CI_Build
+    displayName: "CI - Build & Push Image to ACR"
+    jobs:
+      - job: BuildPush
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: "ACR Build (Dockerfile builds jar inside container) + Push"
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                echo "Building image: $(imageName):$(imageTag)"
+                az acr build \
+                  -g "$(resourceGroup)" \
+                  -r "$(acrName)" \
+                  -t "$(imageName):$(imageTag)" \
+                  .
+
+  # -----------------------
+  # CD: Deploy to AKS
+  # -----------------------
+  - stage: CD_Deploy
+    displayName: "CD - Deploy to AKS"
+    dependsOn: CI_Build
+    jobs:
+      - job: Deploy
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: "kubectl apply + update image"
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                
+                # Get ACR login server
+                ACR_LOGIN_SERVER=$(az acr show -g "$(resourceGroup)" -n "$(acrName)" --query loginServer -o tsv)
+                FULL_IMAGE="$ACR_LOGIN_SERVER/$(imageName):$(imageTag)"
+                echo "Deploying image: $FULL_IMAGE"
+                
+                # Connect to AKS
+                az aks get-credentials -g "$(resourceGroup)" -n "$(aksName)" --overwrite-existing
+                
+                # Apply k8s manifests (use your exact filenames)
+                kubectl apply -f k8s/namespace.yaml
+                kubectl apply -f k8s/serviceaccount.yaml
+                kubectl apply -f k8s/secretprovider.yaml
+                kubectl apply -f k8s/service.yaml
+                kubectl apply -f k8s/deployment.yaml
+                
+                # Update image (no need to change deployment.yaml)
+                kubectl -n "$(namespace)" set image deployment/payment-service \
+                  payment-service="$FULL_IMAGE"
+                
+                # Wait until rollout completes
+                kubectl -n "$(namespace)" rollout status deployment/payment-service --timeout=180s
+                
+                # Show status
+                kubectl -n "$(namespace)" get pods
+                kubectl -n "$(namespace)" get svc payment-service-svc

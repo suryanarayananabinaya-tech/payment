@@ -1,0 +1,122 @@
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureSubscription: 'Abinaya-Azure-dev-Connection'
+  resourceGroup: 'springboot-rg-dev'
+  location: 'eastus'
+  aksName: 'pay-aks-dev'
+  kvName: 'pay-kv-dev-12345'
+  uamiName: 'pay-uami-dev'
+  namespace: 'dev'
+  serviceAccount: 'payment-sa'
+
+stages:
+  - stage: Identity
+    displayName: 'Create Workload Identity + KV Access'
+    jobs:
+      - job: CreateIdentity
+        displayName: 'UAMI + Federated Credential + KV RBAC'
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: 'Create UAMI and print IDs'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                
+                # 1) Create UAMI (idempotent)
+                if az identity show -g "$(resourceGroup)" -n "$(uamiName)" >/dev/null 2>&1; then
+                  echo "UAMI exists: $(uamiName)"
+                else
+                  az identity create -g "$(resourceGroup)" -n "$(uamiName)" -l "$(location)"
+                  echo "Created UAMI: $(uamiName)"
+                fi
+                
+                UAMI_CLIENT_ID=$(az identity show -g "$(resourceGroup)" -n "$(uamiName)" --query clientId -o tsv)
+                UAMI_PRINCIPAL_ID=$(az identity show -g "$(resourceGroup)" -n "$(uamiName)" --query principalId -o tsv)
+                TENANT_ID=$(az account show --query tenantId -o tsv)
+                
+                echo "UAMI_CLIENT_ID=$UAMI_CLIENT_ID"
+                echo "UAMI_PRINCIPAL_ID=$UAMI_PRINCIPAL_ID"
+                echo "TENANT_ID=$TENANT_ID"
+                
+                # Pipeline variables for next steps/stages
+                echo "##vso[task.setvariable variable=UAMI_CLIENT_ID;isOutput=true]$UAMI_CLIENT_ID"
+                echo "##vso[task.setvariable variable=UAMI_PRINCIPAL_ID;isOutput=true]$UAMI_PRINCIPAL_ID"
+                echo "##vso[task.setvariable variable=TENANT_ID;isOutput=true]$TENANT_ID"
+                
+                # ----------------------------
+                         # 2) Create federated credential (SA -> UAMI)
+                         # ----------------------------
+                         OIDC_ISSUER=$(az aks show -g "$(resourceGroup)" -n "$(aksName)" --query "oidcIssuerProfile.issuerUrl" -o tsv)
+                         echo "OIDC_ISSUER=$OIDC_ISSUER"
+
+                         FIC_NAME="pay-fic-payment-sa"
+                         SUBJECT="system:serviceaccount:$(namespace):$(serviceAccount)"
+
+                         if az identity federated-credential show \
+                           --resource-group "$(resourceGroup)" \
+                           --identity-name "$(uamiName)" \
+                           --name "$FIC_NAME" >/dev/null 2>&1; then
+                           echo "Federated credential exists: $FIC_NAME"
+                         else
+                           az identity federated-credential create \
+                             --name "$FIC_NAME" \
+                             --identity-name "$(uamiName)" \
+                             --resource-group "$(resourceGroup)" \
+                             --issuer "$OIDC_ISSUER" \
+                             --subject "$SUBJECT" \
+                             --audiences api://AzureADTokenExchange >/dev/null
+                           echo "Created federated credential: $FIC_NAME"
+                         fi
+
+                         # ----------------------------
+                         # 3) Grant Key Vault RBAC to UAMI
+                         # ----------------------------
+                         KV_ID=$(az keyvault show -n "$(kvName)" -g "$(resourceGroup)" --query id -o tsv)
+                         echo "KV_ID=$KV_ID"
+
+                         # Key Vault Secrets User role at vault scope
+                         if az role assignment list \
+                           --assignee-object-id "$UAMI_PRINCIPAL_ID" \
+                           --scope "$KV_ID" \
+                           --query "[?roleDefinitionName=='Key Vault Secrets User'] | length(@)" \
+                           -o tsv | grep -q "^1$"; then
+                           echo "KV RBAC already assigned: Key Vault Secrets User"
+                         else
+                           az role assignment create \
+                             --assignee-object-id "$UAMI_PRINCIPAL_ID" \
+                             --assignee-principal-type ServicePrincipal \
+                             --role "Key Vault Secrets User" \
+                             --scope "$KV_ID" >/dev/null
+                           echo "Assigned KV RBAC: Key Vault Secrets User"
+                         fi
+
+                         # ----------------------------
+                         # 4) Patch k8s YAML placeholders in repo
+                         # ----------------------------
+                         echo "Patching k8s manifests..."
+
+                         # ServiceAccount annotation
+                         sed -i "s|azure.workload.identity/client-id: \".*\"|azure.workload.identity/client-id: \"$UAMI_CLIENT_ID\"|g" k8s/serviceaccount.yaml || true
+                         sed -i "s|azure.workload.identity/client-id: <UAMI_CLIENT_ID>|azure.workload.identity/client-id: \"$UAMI_CLIENT_ID\"|g" k8s/serviceaccount.yaml || true
+
+                         # SecretProviderClass parameters
+                         sed -i "s|clientID: \".*REPLACE_LATER.*\"|clientID: \"$UAMI_CLIENT_ID\"|g" k8s/secretprovider.yaml || true
+                         sed -i "s|tenantId: \".*REPLACE_LATER.*\"|tenantId: \"$TENANT_ID\"|g" k8s/secretprovider.yaml || true
+                         sed -i "s|keyvaultName: \".*REPLACE_LATER.*\"|keyvaultName: \"$(kvName)\"|g" k8s/secretprovider.yaml || true
+
+                         echo "Done patching."
+
+                         echo "----- Patched serviceaccount.yaml -----"
+                         cat k8s/serviceaccount.yaml || true
+                         echo "----- Patched secretprovider.yaml -----"
+                         cat k8s/secretprovider.yaml || true
+
