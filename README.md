@@ -1,6 +1,6 @@
 # Payment Microservice – Cloud Native Spring Boot Application
 
-Java | Spring Boot | REST API | JWT Security | Azure | Kubernetes | Docker | CI/CD | Design Patterns
+Java | Spring Boot | Kafka | Resilience4j | Azure | Kubernetes | Docker | CI/CD | Design Patterns
 
 ---
 
@@ -8,9 +8,9 @@ Java | Spring Boot | REST API | JWT Security | Azure | Kubernetes | Docker | CI/
 
 This repository contains a cloud-native Payment microservice built using Spring Boot and designed for deployment on Microsoft Azure.
 
-The project demonstrates how modern backend services are developed using clean architecture, secure API authentication, containerization, cloud infrastructure, and automated CI/CD pipelines.
+The project demonstrates how modern backend services are developed using clean architecture, secure API authentication, containerization, cloud infrastructure, event-driven messaging, and automated CI/CD pipelines.
 
-The service simulates a production-style payment processing backend and demonstrates how enterprise systems are structured, secured, and deployed.
+The service simulates a production-style payment processing backend and demonstrates how enterprise systems are structured, secured, scalable, and fault-tolerant.
 
 ---
 
@@ -31,28 +31,34 @@ F --> G[Service Layer]
 G --> H[Business Logic & Design Patterns]
 
 H --> I[Repository Layer]
-I --> J[(Database)]
+I --> J[(Azure SQL Database)]
+
+G --> K[Transactional Outbox]
+K --> L[Kafka Producer]
+L --> M[(Kafka Topic: payment.created)]
+
+M --> N[Kafka Consumer]
+N --> O[Audit / Async Processing]
+
+G --> P[Resilience4j Circuit Breaker]
 
 subgraph Cloud Deployment
-K[Docker Container]
-L[Kubernetes Cluster]
-M[Azure App Service]
+Q[Docker Container]
+R[Kubernetes Cluster]
+S[Azure App Service]
 end
 
-B --> K
-K --> L
-L --> M
+B --> Q
+Q --> R
+Q --> S
 
 subgraph DevOps Pipeline
-N[Git Repository]
-O[Azure DevOps Pipeline]
+T[Git Repository]
+U[Azure DevOps Pipeline]
 end
 
-N --> O
-O --> K
-```
-
-Application Deployment to Azure App Service / Kubernetes
+T --> U
+U --> Q
 
 ---
 
