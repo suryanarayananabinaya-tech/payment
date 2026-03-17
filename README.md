@@ -21,32 +21,31 @@ It demonstrates how modern backend systems are designed using:
 The system simulates a production-grade payment processing backend with enterprise-level design, scalability, and resilience.
 
 ---
-
 # Architecture
 
 ```mermaid
 flowchart TD
 
-A[Client Application] --> B[Spring Boot REST API]
+    A["Client Application"] --> B["Spring Boot REST API"]
 
-B --> C[JWT Authentication]
-C --> D[Security Filter]
+    B --> C["JWT Authentication"]
+    C --> D["Security Filter"]
 
-D --> E[Controller Layer]
-E --> F[Service Layer]
+    D --> E["Controller Layer"]
+    E --> F["Service Layer"]
 
-F --> G[Business Logic]
-G --> H[Idempotency Check]
-H --> I[(Azure SQL Database)]
+    F --> G["Business Logic"]
+    G --> H["Idempotency Check"]
+    H --> I["Azure SQL Database"]
 
-F --> J[Transactional Outbox]
-J --> K[Kafka Producer]
-K --> L[(Kafka Topic: payment.created)]
+    F --> J["Transactional Outbox"]
+    J --> K["Kafka Producer"]
+    K --> L["Kafka Topic: payment.created"]
 
-L --> M[Kafka Consumer]
-M --> N[Audit / Async Processing]
+    L --> M["Kafka Consumer"]
+    M --> N["Audit / Async Processing"]
 
-F --> O[Resilience4j Circuit Breaker]
+    F --> O["Resilience4j Circuit Breaker"]
 
 Tech Stack
 Backend
