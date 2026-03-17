@@ -47,3 +47,54 @@ flowchart TD
     M --> N["Audit / Async Processing"]
 
     F --> O["Resilience4j Circuit Breaker"]
+
+  # Tech Stack
+Backend
+
+Java 21
+
+Spring Boot 3
+
+Spring Web
+
+Spring Data JPA
+
+Spring Security (JWT)
+
+Spring Kafka
+
+Resilience4j
+
+Messaging
+
+Apache Kafka
+
+Transactional Outbox Pattern
+
+Cloud
+
+Microsoft Azure
+
+Azure App Service
+
+Azure SQL Database
+
+Containerization
+
+Docker
+
+Orchestration
+
+Kubernetes
+
+DevOps
+
+Azure DevOps Pipelines
+
+Infrastructure as Code (Bicep)
+
+Monitoring
+
+Azure Application Insights
+
+Azure Log Analytics
