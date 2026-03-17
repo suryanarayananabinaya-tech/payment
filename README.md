@@ -48,15 +48,6 @@ M --> N[Audit / Async Processing]
 
 F --> O[Resilience4j Circuit Breaker]
 
-Got it — you want a complete, professional, full-length README (not short version).
-Below is a clean, structured, production-level README you can directly copy-paste to GitHub 👇
-
-# Payment Microservice – Cloud Native Spring Boot Application
-
-Java | Spring Boot | Kafka | Resilience4j | Azure | Kubernetes | Docker | CI/CD | Design Patterns
-
----
-
 Tech Stack
 Backend
 
