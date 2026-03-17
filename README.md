@@ -215,6 +215,7 @@ Response:
 {
   "token": "JWT_TOKEN"
 }
+
 Payment APIs
 
 GET /payments
