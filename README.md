@@ -10,19 +10,19 @@ This repository contains a cloud-native Payment microservice built using Spring 
 
 The project simulates a production-grade payment processing system and demonstrates how modern backend systems are built using:
 
-Secure REST APIs with JWT authentication
+- Secure REST APIs with JWT authentication
 
-Event-driven architecture using Apache Kafka
+- Event-driven architecture using Apache Kafka
 
-Transaction reliability using the Transactional Outbox Pattern
+- Transaction reliability using the Transactional Outbox Pattern
 
-Idempotent request handling to prevent duplicate payments
+- Idempotent request handling to prevent duplicate payments
 
-Fault tolerance using Resilience4j (Circuit Breaker & Retry)
+- Fault tolerance using Resilience4j (Circuit Breaker & Retry)
 
-Containerization using Docker and orchestration via Kubernetes
+- Containerization using Docker and orchestration via Kubernetes
 
-CI/CD pipelines using Azure DevOps
+- CI/CD pipelines using Azure DevOps
 
 This project reflects real-world enterprise backend architecture used in banking and fintech systems.
 
@@ -86,49 +86,40 @@ T --> O
 
 Backend
 
-Java 21
-
-Spring Boot 3
-
-Spring Web
-
-Spring Data JPA
-
-Spring Security
+- Java 21
+- Spring Boot 3
+- Spring Web
+- Spring Data JPA
+- Spring Security
 
 Messaging
 
-Apache Kafka
-
-Kafka Producer & Consumer APIs
+- Apache Kafka
+- Kafka Producer & Consumer APIs
 
 Resilience
 
-Resilience4j (Circuit Breaker, Retry)
+- Resilience4j (Circuit Breaker, Retry)
 
 Cloud
 
-Microsoft Azure
-
-Azure App Service
+- Microsoft Azure
+- Azure App Service
 
 Containerization & Orchestration
 
-Docker
-
-Kubernetes
+- Docker
+- Kubernetes
 
 DevOps
 
-Azure DevOps Pipelines
-
-Infrastructure as Code (Bicep)
+- Azure DevOps Pipelines
+- Infrastructure as Code (Bicep)
 
 Monitoring
 
-Azure Application Insights
-
-Azure Log Analytics
+- Azure Application Insights
+- Azure Log Analytics
 
 ---
 
@@ -136,74 +127,49 @@ Azure Log Analytics
 
 1. Secure REST APIs (JWT Authentication)
 
-Stateless authentication using JWT
-
-Token-based authorization for protected endpoints
-
-Spring Security filter chain implementation
+- Stateless authentication using JWT
+- Token-based authorization for protected endpoints
+- Spring Security filter chain implementation
 
 2. Event-Driven Architecture (Kafka)
 
-Payment creation triggers an event → payment-created topic
-
-Producer publishes events reliably
-
-Consumer processes downstream workflows asynchronously
+- Payment creation triggers an event → payment-created topic
+- Producer publishes events reliably
+- Consumer processes downstream workflows asynchronously
 
 Benefits:
-
-Loose coupling
-
-Scalability
-
-High throughput
+- Loose coupling
+- Scalability
+- High throughput
 
 3. Transactional Outbox Pattern
-
 Ensures reliable message delivery without data inconsistency.
 
 Flow:
-
-Payment saved in DB
-
-Event stored in Outbox table
-
-Outbox publisher sends event to Kafka
-
-Event marked as processed
+- Payment saved in DB
+- Event stored in Outbox table
+- Outbox publisher sends event to Kafka
+- Event marked as processed
 
 Why?
-
-Prevents data loss between DB & Kafka
-
-Ensures exactly-once behavior (practical)
+- Prevents data loss between DB & Kafka
+- Ensures exactly-once behavior (practical)
 
 4. Idempotent Request Handling
-
 Prevents duplicate payment processing.
-
-Unique request ID (idempotency key)
-
-Duplicate requests return cached response
-
-Ensures safe retries from clients
+- Unique request ID (idempotency key)
+- Duplicate requests return cached response
+- Ensures safe retries from clients
 
 5. Fault Tolerance (Resilience4j)
 Circuit Breaker
-
-Prevents cascading failures
-
-Opens when downstream service fails repeatedly
-
+- Prevents cascading failures
+- Opens when downstream service fails repeatedly
 Retry Mechanism
-
-Retries transient failures automatically
-
+- Retries transient failures automatically
 Result:
-
-Improved system stability
-
-Better user experience
+- Improved system stability
+- Better user experience
 
 ---
 
@@ -260,76 +226,57 @@ Triggers Kafka event on creation
 
 ---
 # Project Structure
-payment-service
-│
-├── src/main/java/com/example/payment
-│   ├── controller        → REST API endpoints
-│   ├── service           → Business logic layer
-│   ├── repository        → Data access (JPA)
-│   ├── entity            → Database entities
-│   ├── dto               → Request/Response objects
-│   ├── exception         → Global exception handling
-│   ├── util              → Utility classes (JWT, helpers)
-│   ├── config            → Security, Kafka, Resilience configs
-│
-│   ├── messaging         → Kafka producer & consumer
-│   ├── event             → Event models (PaymentCreatedEvent)
-│   ├── outbox            → Transactional Outbox implementation
-│   ├── idempotency       → Idempotency handling logic
-│
-│   ├── strategy          → Strategy pattern (payment logic)
-│   ├── factory           → Factory pattern
-│   ├── decorator         → Decorator pattern
-│   ├── observer          → Observer pattern
-│   ├── proxy             → Proxy pattern
-│   ├── template          → Template pattern
-│
-│   └── PaymentApplication.java
-│
-├── src/main/resources
-│   ├── application.properties
-│   ├── application-dev.properties
-│
-├── src/test/java/com/example/payment
-│
-├── k8s/                         → Kubernetes manifests
-├── infra/                       → Azure Bicep templates
-│
-├── Dockerfile
-├── docker-compose.yml
-├── pom.xml
-│
-├── azure-pipelines-ci-cd.yaml
-├── azure-pipelines-infra.yaml
-├── azure-pipelines-identity.yaml
-├── azure-pipelines.yaml
-│
-└── README.md
+
+📦 payment-service
+ ┣ 📂 src/main/java/com/example/payment
+ ┃ ┣ 📂 controller
+ ┃ ┣ 📂 service
+ ┃ ┣ 📂 repository
+ ┃ ┣ 📂 entity
+ ┃ ┣ 📂 dto
+ ┃ ┣ 📂 exception
+ ┃ ┣ 📂 util
+ ┃ ┣ 📂 config
+ ┃ ┣ 📂 messaging
+ ┃ ┣ 📂 event
+ ┃ ┣ 📂 outbox
+ ┃ ┣ 📂 idempotency
+ ┃ ┣ 📂 strategy
+ ┃ ┣ 📂 factory
+ ┃ ┣ 📂 decorator
+ ┃ ┣ 📂 observer
+ ┃ ┣ 📂 proxy
+ ┃ ┣ 📂 template
+ ┃ ┗ 📜 PaymentApplication.java
+ ┣ 📂 resources
+ ┣ 📂 test
+ ┣ 📂 k8s
+ ┣ 📂 infra
+ ┣ 📜 Dockerfile
+ ┣ 📜 docker-compose.yml
+ ┣ 📜 pom.xml
+ ┣ 📜 azure-pipelines.yml
+ ┗ 📜 README.md
+
 ---
 
 # Design Patterns Implemented
-Strategy Pattern → Payment processing logic
-
-Factory Pattern → Processor creation
-
-Decorator Pattern → Additional behaviors
-
-Observer Pattern → Event notifications
-
-Proxy Pattern → Controlled access
-
-Template Pattern → Workflow standardization
+- Strategy Pattern → Payment processing logic
+- Factory Pattern → Processor creation
+- Decorator Pattern → Additional behaviors
+- Observer Pattern → Event notifications
+- Proxy Pattern → Controlled access
+- Template Pattern → Workflow standardization
 
 ---
 # Docker
 
 Build:
-
 docker build -t payment-service .
 
 Run:
-
 docker run -p 8080:8080 payment-service
+
 ---
 
 # Kubernetes Deployment
@@ -344,6 +291,7 @@ Service
 Namespace
 
 Secrets
+
 ---
 # Azure Deployment
 
@@ -353,34 +301,27 @@ CI/CD via Azure DevOps
 
 Flow:
 Code → Build → Docker → Deploy
+
 ---
 # Running Locally
 mvn clean install
 mvn spring-boot:run
 
 URL:
-
 http://localhost:8080
+
 ---
 # Skills Demonstrated
 
-Java & Spring Boot backend engineering
-
-Microservices & REST API design
-
-Kafka event-driven architecture
-
-Transactional Outbox Pattern
-
-Idempotency handling
-
-Fault tolerance (Resilience4j)
-
-Docker & Kubernetes
-
-Azure cloud deployment
-
-CI/CD pipelines
+- Java & Spring Boot backend engineering
+- Microservices & REST API design
+- Kafka event-driven architecture
+- Transactional Outbox Pattern
+- Idempotency handling
+- Fault tolerance (Resilience4j)
+- Docker & Kubernetes
+- Azure cloud deployment
+- CI/CD pipelines
 
 ---
 
@@ -388,21 +329,16 @@ CI/CD pipelines
 
 This project demonstrates how real-world financial systems are built with:
 
-Reliability
-
-Scalability
-
-Fault tolerance
-
-Secure communication
+- Reliability
+- Scalability
+- Fault tolerance
+- Secure communication
 
 It mirrors architecture used in:
 
-Banking systems
-
-Payment gateways
-
-Distributed microservices
+-Banking systems
+-Payment gateways
+-Distributed microservices
 
 ---
 
@@ -410,45 +346,36 @@ Distributed microservices
 
 Planned next-level improvements:
 
-# Architecture Enhancements
+Architecture Enhancements
 
-Introduce Saga Pattern (Orchestration/Choreography)
+- Introduce Saga Pattern (Orchestration/Choreography)
+- Add Dead Letter Queue (DLQ) for Kafka
+- Implement Event versioning & schema registry
 
-Add Dead Letter Queue (DLQ) for Kafka
+Observability
 
-Implement Event versioning & schema registry
+- Distributed tracing (OpenTelemetry / Zipkin)
+- Centralized logging (ELK stack)
+- Metrics dashboard (Prometheus + Grafana)
 
-# Observability
+Performance & Scalability
 
-Distributed tracing (OpenTelemetry / Zipkin)
+- Kafka partition tuning
+- Horizontal pod autoscaling (HPA)
+- Redis caching layer
 
-Centralized logging (ELK stack)
+Security
 
-Metrics dashboard (Prometheus + Grafana)
+- OAuth2 integration
+- Role-based access control (RBAC)
+- API rate limiting
 
-# Performance & Scalability
+Testing
 
-Kafka partition tuning
-
-Horizontal pod autoscaling (HPA)
-
-Redis caching layer
-
-# Security
-
-OAuth2 integration
-
-Role-based access control (RBAC)
-
-API rate limiting
-
-# Testing
-
-Contract testing
-
-Integration testing with Testcontainers
-
-Chaos engineering
+- Contract testing
+- Integration testing with Testcontainers
+- Chaos engineering
+- 
 ---
 
 # Author
