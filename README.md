@@ -47,6 +47,7 @@ flowchart TD
     M --> N["Audit / Async Processing"]
 
     F --> O["Resilience4j Circuit Breaker"]
+---
 # Tech Stack
 
 ## Backend
