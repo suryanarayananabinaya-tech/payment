@@ -8,19 +8,20 @@ Java | Spring Boot | Kafka | Resilience4j | Azure | Kubernetes | Docker | CI/CD 
 
 This project is a cloud-native Payment microservice built using Spring Boot and deployed on Microsoft Azure.
 
-It demonstrates how modern backend systems are designed using:
+It demonstrates modern backend engineering practices including:
 
 - Secure REST APIs with JWT authentication
-- Event-driven architecture using Apache Kafka
+- Event-driven architecture using Kafka
 - Transactional Outbox Pattern for reliable messaging
-- Idempotent request handling to prevent duplicates
+- Idempotent request handling
 - Retry mechanisms for fault tolerance
 - Circuit Breaker using Resilience4j
 - Docker, Kubernetes, and CI/CD pipelines
 
-The system simulates a production-grade payment processing backend with enterprise-level design, scalability, and resilience.
+The system simulates a production-grade payment processing backend with enterprise-level scalability and resilience.
 
 ---
+
 # Architecture
 
 ```mermaid
@@ -46,6 +47,8 @@ flowchart TD
     M --> N["Audit / Async Processing"]
 
     F --> O["Resilience4j Circuit Breaker"]
+
+---
 
 Tech Stack
 Backend
