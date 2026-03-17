@@ -1,6 +1,6 @@
 # Payment Microservice – Cloud Native Spring Boot Application
 
-Java | Spring Boot | REST API | JWT Security | Azure | Kubernetes | Docker | CI/CD | Design Patterns
+Java | Spring Boot | Kafka | REST API | JWT Security | Resilience4j | Azure | Kubernetes | Docker | CI/CD | Design Patterns
 
 ---
 
@@ -8,51 +8,77 @@ Java | Spring Boot | REST API | JWT Security | Azure | Kubernetes | Docker | CI/
 
 This repository contains a cloud-native Payment microservice built using Spring Boot and designed for deployment on Microsoft Azure.
 
-The project demonstrates how modern backend services are developed using clean architecture, secure API authentication, containerization, cloud infrastructure, and automated CI/CD pipelines.
+The project simulates a production-grade payment processing system and demonstrates how modern backend systems are built using:
 
-The service simulates a production-style payment processing backend and demonstrates how enterprise systems are structured, secured, and deployed.
+- Secure REST APIs with JWT authentication
+
+- Event-driven architecture using Apache Kafka
+
+- Transaction reliability using the Transactional Outbox Pattern
+
+- Idempotent request handling to prevent duplicate payments
+
+- Fault tolerance using Resilience4j (Circuit Breaker & Retry)
+
+- Containerization using Docker and orchestration via Kubernetes
+
+- CI/CD pipelines using Azure DevOps
+
+This project reflects real-world enterprise backend architecture used in banking and fintech systems.
 
 ---
 
-# Architecture Diagram
+# Architecture
 
 ```mermaid
 flowchart TD
 
 A[Client Application] --> B[Spring Boot REST API]
 
-B --> C[Authentication Controller]
-C --> D[JWT Authentication]
-D --> E[Security Filter]
+B --> C[JWT Authentication]
+C --> D[Security Filter]
 
-E --> F[Controller Layer]
-F --> G[Service Layer]
+D --> E[Controller Layer]
+E --> F[Service Layer]
 
-G --> H[Business Logic & Design Patterns]
+F --> G[Business Logic]
+G --> H[Idempotency Check]
+H --> I[Outbox Pattern]
 
-H --> I[Repository Layer]
 I --> J[(Database)]
+I --> K[Kafka Producer]
+
+K --> L[Kafka Topic: payment-created]
+
+L --> M[Kafka Consumer]
+M --> N[Downstream Processing]
+
+subgraph Resilience
+R1[Retry Mechanism]
+R2[Circuit Breaker]
+end
+
+F --> R1
+F --> R2
 
 subgraph Cloud Deployment
-K[Docker Container]
-L[Kubernetes Cluster]
-M[Azure App Service]
+O[Docker]
+P[Kubernetes]
+Q[Azure App Service]
 end
 
-B --> K
-K --> L
-L --> M
+B --> O
+O --> P
+P --> Q
 
-subgraph DevOps Pipeline
-N[Git Repository]
-O[Azure DevOps Pipeline]
+subgraph DevOps
+S[GitHub]
+T[Azure DevOps Pipeline]
 end
 
-N --> O
-O --> K
+S --> T
+T --> O
 ```
-
-Application Deployment to Azure App Service / Kubernetes
 
 ---
 
@@ -65,19 +91,24 @@ Backend
 - Spring Web
 - Spring Data JPA
 - Spring Security
-- JWT Authentication
+
+Messaging
+
+- Apache Kafka
+- Kafka Producer & Consumer APIs
+
+Resilience
+
+- Resilience4j (Circuit Breaker, Retry)
 
 Cloud
 
 - Microsoft Azure
 - Azure App Service
 
-Containerization
+Containerization & Orchestration
 
 - Docker
-
-Orchestration
-
 - Kubernetes
 
 DevOps
@@ -92,287 +123,266 @@ Monitoring
 
 ---
 
+# Key Features
+
+1. Secure REST APIs (JWT Authentication)
+
+- Stateless authentication using JWT
+- Token-based authorization for protected endpoints
+- Spring Security filter chain implementation
+
+2. Event-Driven Architecture (Kafka)
+
+- Payment creation triggers an event → payment-created topic
+- Producer publishes events reliably
+- Consumer processes downstream workflows asynchronously
+
+Benefits:
+- Loose coupling
+- Scalability
+- High throughput
+
+3. Transactional Outbox Pattern
+Ensures reliable message delivery without data inconsistency.
+
+Flow:
+- Payment saved in DB
+- Event stored in Outbox table
+- Outbox publisher sends event to Kafka
+- Event marked as processed
+
+Why?
+- Prevents data loss between DB & Kafka
+- Ensures exactly-once behavior (practical)
+
+4. Idempotent Request Handling
+Prevents duplicate payment processing.
+- Unique request ID (idempotency key)
+- Duplicate requests return cached response
+- Ensures safe retries from clients
+
+5. Fault Tolerance (Resilience4j)
+Circuit Breaker
+- Prevents cascading failures
+- Opens when downstream service fails repeatedly
+Retry Mechanism
+- Retries transient failures automatically
+Result:
+- Improved system stability
+- Better user experience
+
+---
+
 # Security Architecture
 
-This project implements JWT-based authentication and authorization using Spring Security.
+Authentication Flow:
 
-Authentication Flow
+Client Request
+↓
+Authentication Controller
+↓
+JWT Token Generation
+↓
+Client Stores Token
+↓
+Request with Authorization Header
+↓
+JWT Filter Validation
+↓
+Access Granted
 
-Client Login Request  
-↓  
-AuthenticationController  
-↓  
-Spring Security Authentication Manager  
-↓  
-JWT Token Generated  
-↓  
-Client Stores Token  
-↓  
-Client Sends Token in Authorization Header  
-↓  
-JWTAuthenticationFilter Validates Token  
-↓  
-Access Granted to Protected APIs
-
-Example Authorization Header
+Header Example:
 
 Authorization: Bearer <JWT_TOKEN>
 
 ---
 
-# Security Components
-
-SecurityConfig.java  
-Configures Spring Security filters and endpoint protection.
-
-JWTAuthenticationFilter.java  
-Intercepts incoming requests and validates JWT tokens.
-
-JwtConfig.java  
-Defines JWT properties such as secret key and expiration.
-
-CustomUserDetailsService.java  
-Loads user details for authentication.
-
-JWTUtil.java  
-Utility class for generating and validating JWT tokens.
-
----
-
 # API Endpoints
 
-Authentication Endpoint
+Authentication
 
 POST /auth/login
 
-Request Example
+Request:
 
 {
   "username": "user",
   "password": "password"
 }
 
-Response Example
+Response:
 
 {
   "token": "JWT_TOKEN"
 }
+Payment APIs
 
-Protected Payment APIs
+GET /payments
+POST /payments
 
-GET /payments  
-POST /payments  
+Requires JWT Token
 
-These endpoints require a valid JWT token.
-
----
-
-# Project Structure
-
-payment
-
-src/main/java/com/example/payment
-
-controller  
-service  
-repository  
-entity  
-dto  
-exception  
-model  
-util  
-
-Design Patterns
-
-strategy  
-factory  
-decorator  
-observer  
-proxy  
-template  
-
-resources
-
-application-local.properties  
-application-dev.properties  
-
-Infrastructure
-
-infra/main.bicep  
-infra/main.dev.parameters.json  
-
-Kubernetes
-
-k8s/deployment.yaml  
-k8s/service.yaml  
-k8s/namespace.yaml  
-k8s/serviceaccount.yaml  
-k8s/secretprovider.yaml  
-
-DevOps
-
-azure-pipelines-ci-cd.yaml  
-azure-pipelines-infra.yaml  
-azure-pipelines-identity.yaml  
-
-Other Files
-
-Dockerfile  
-pom.xml  
+Triggers Kafka event on creation 
 
 ---
+## Project Structure
+
+```plaintext
+payment-service
+│
+├── src/main/java/com/example/payment
+│   ├── controller        → REST API endpoints
+│   ├── service           → Business logic layer
+│   ├── repository        → Data access (JPA)
+│   ├── entity            → Database entities
+│   ├── dto               → Request/Response objects
+│   ├── exception         → Global exception handling
+│   ├── util              → Utility classes (JWT, helpers)
+│   ├── config            → Security, Kafka, Resilience configs
+│
+│   ├── messaging         → Kafka producer & consumer
+│   ├── event             → Event models (PaymentCreatedEvent)
+│   ├── outbox            → Transactional Outbox implementation
+│   ├── idempotency       → Idempotency handling logic
+│
+│   ├── strategy          → Strategy pattern
+│   ├── factory           → Factory pattern
+│   ├── decorator         → Decorator pattern
+│   ├── observer          → Observer pattern
+│   ├── proxy             → Proxy pattern
+│   ├── template          → Template pattern
+│
+│   └── PaymentApplication.java
+│
+├── src/main/resources
+├── src/test/java/com/example/payment
+├── k8s/
+├── infra/
+├── Dockerfile
+├── docker-compose.yml
+├── pom.xml
+├── azure-pipelines.yml
+└── README.md
+```
 
 # Design Patterns Implemented
-
-This project demonstrates several enterprise design patterns commonly used in backend systems.
-
-Strategy Pattern  
-Used to select different payment processing algorithms.
-
-Factory Pattern  
-Creates payment processor objects dynamically.
-
-Decorator Pattern  
-Adds additional behaviors to payment processing logic.
-
-Observer Pattern  
-Handles event notifications for payment state changes.
-
-Proxy Pattern  
-Controls access to payment services.
-
-Template Pattern  
-Defines a template workflow for payment operations.
-
-These patterns demonstrate clean architecture and extensible system design.
+- Strategy Pattern → Payment processing logic
+- Factory Pattern → Processor creation
+- Decorator Pattern → Additional behaviors
+- Observer Pattern → Event notifications
+- Proxy Pattern → Controlled access
+- Template Pattern → Workflow standardization
 
 ---
+# Docker
 
-# Docker Container
-
-The service is containerized using Docker.
-
-Build the image
-
+Build:
 docker build -t payment-service .
 
-Run the container
-
+Run:
 docker run -p 8080:8080 payment-service
 
 ---
 
 # Kubernetes Deployment
-
-Kubernetes manifests are located in the k8s directory.
-
-Deployment includes
-
-Namespace  
-Deployment  
-Service  
-Service Account  
-Secret Provider  
-
-Deploy to Kubernetes
-
 kubectl apply -f k8s/
 
----
+Includes:
 
-# Infrastructure as Code (Azure)
+Deployment
 
-Azure infrastructure is provisioned using Bicep templates.
+Service
 
-Location
+Namespace
 
-infra/main.bicep
-
-Example deployment
-
-az deployment sub create \
---location eastus \
---template-file infra/main.bicep
+Secrets
 
 ---
+# Azure Deployment
 
-# Azure App Service Deployment
+Azure App Service
 
-The application is deployed to Azure App Service for cloud hosting.
+CI/CD via Azure DevOps
 
-Deployment Flow
-
-Code Commit  
-↓  
-Azure DevOps Pipeline  
-↓  
-Application Build  
-↓  
-Docker Image Creation  
-↓  
-Deployment to Azure App Service
-
-Once deployed, the application can be accessed using the Azure App Service URL.
+Flow:
+Code → Build → Docker → Deploy
 
 ---
-
 # Running Locally
-
-Build the project
-
 mvn clean install
-
-Run the application
-
 mvn spring-boot:run
 
-Application will start at
-
+URL:
 http://localhost:8080
 
 ---
-
 # Skills Demonstrated
 
-This project demonstrates the following engineering skills
-
-Java backend development  
-Spring Boot REST API development  
-JWT authentication and security using Spring Security  
-Enterprise design patterns  
-Docker containerization  
-Kubernetes deployment  
-Infrastructure as Code using Azure Bicep  
-CI/CD automation using Azure DevOps  
-Cloud-native application architecture  
+- Java & Spring Boot backend engineering
+- Microservices & REST API design
+- Kafka event-driven architecture
+- Transactional Outbox Pattern
+- Idempotency handling
+- Fault tolerance (Resilience4j)
+- Docker & Kubernetes
+- Azure cloud deployment
+- CI/CD pipelines
 
 ---
 
 # Why This Project Matters
 
-Modern backend systems require scalable cloud infrastructure, automated deployments, and secure application architecture.
+This project demonstrates how real-world financial systems are built with:
 
-This project demonstrates how developers can combine backend development, cloud infrastructure, and DevOps automation to build production-ready systems.
+- Reliability
+- Scalability
+- Fault tolerance
+- Secure communication
+
+It mirrors architecture used in:
+
+-Banking systems
+-Payment gateways
+-Distributed microservices
 
 ---
 
-# Future Improvements
+# Improvements / Future Enhancements
 
-Add Kafka-based event publishing for payment status updates  
-Introduce asynchronous event-driven architecture  
-Add distributed tracing  
-Implement API rate limiting  
-Integrate monitoring dashboards  
-Add integration testing  
+Planned next-level improvements:
 
+Architecture Enhancements
+
+- Introduce Saga Pattern (Orchestration/Choreography)
+- Add Dead Letter Queue (DLQ) for Kafka
+- Implement Event versioning & schema registry
+
+Observability
+
+- Distributed tracing (OpenTelemetry / Zipkin)
+- Centralized logging (ELK stack)
+- Metrics dashboard (Prometheus + Grafana)
+
+Performance & Scalability
+
+- Kafka partition tuning
+- Horizontal pod autoscaling (HPA)
+- Redis caching layer
+
+Security
+
+- OAuth2 integration
+- Role-based access control (RBAC)
+- API rate limiting
+
+Testing
+
+- Contract testing
+- Integration testing with Testcontainers
+- Chaos engineering
+- 
 ---
 
 # Author
 
 Abinaya Suryanarayanan
-
-Java Backend Developer  
-Spring Boot | Microservices | Azure | DevOps
-
-GitHub  
-https://github.com/suryanarayananabinaya-tech

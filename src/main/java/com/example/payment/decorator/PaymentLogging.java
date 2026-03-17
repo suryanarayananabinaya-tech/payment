@@ -5,7 +5,7 @@ import com.example.payment.strategy.PaymentStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public record PaymentLogging(PaymentStrategy delegate) implements PaymentStrategy {
+public record PaymentLogging(PaymentStrategy paymentStrategy) implements PaymentStrategy {
 
     private static final Logger logger = LoggerFactory.getLogger(PaymentLogging.class);
 
@@ -16,7 +16,7 @@ public record PaymentLogging(PaymentStrategy delegate) implements PaymentStrateg
 
         long start = System.currentTimeMillis();
         try {
-            delegate.pay(paymentRequest);
+            paymentStrategy.pay(paymentRequest);
             logger.info("Payment request finished successfully");
         } finally {
             long duration = System.currentTimeMillis() - start;
