@@ -50,7 +50,7 @@ flowchart TD
 
 ---
 
-Tech Stack
+#Tech Stack
 Backend
 
 Java 21
