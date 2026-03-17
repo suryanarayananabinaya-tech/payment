@@ -24,20 +24,52 @@ It demonstrates modern backend engineering practices including:
 
 ```mermaid
 flowchart TD
-    A["Client Application"] --> B["Spring Boot REST API"]
-    B --> C["JWT Authentication"]
-    C --> D["Security Filter"]
-    D --> E["Controller Layer"]
-    E --> F["Service Layer"]
-    F --> G["Business Logic"]
-    G --> H["Idempotency Check"]
-    H --> I["Azure SQL Database"]
-    F --> J["Transactional Outbox"]
-    J --> K["Kafka Producer"]
-    K --> L["Kafka Topic: payment.created"]
-    L --> M["Kafka Consumer"]
-    M --> N["Audit / Async Processing"]
-    F --> O["Resilience4j Circuit Breaker"]
+
+A[Client Application] --> B[Spring Boot REST API]
+
+B --> C[JWT Authentication]
+C --> D[Security Filter]
+
+D --> E[Controller Layer]
+E --> F[Service Layer]
+
+F --> G[Business Logic]
+G --> H[Idempotency Check]
+H --> I[Outbox Pattern]
+
+I --> J[(Database)]
+I --> K[Kafka Producer]
+
+K --> L[Kafka Topic: payment-created]
+
+L --> M[Kafka Consumer]
+M --> N[Downstream Processing]
+
+subgraph Resilience
+R1[Retry Mechanism]
+R2[Circuit Breaker]
+end
+
+F --> R1
+F --> R2
+
+subgraph Cloud Deployment
+O[Docker]
+P[Kubernetes]
+Q[Azure App Service]
+end
+
+B --> O
+O --> P
+P --> Q
+
+subgraph DevOps
+S[GitHub]
+T[Azure DevOps Pipeline]
+end
+
+S --> T
+T --> O
 ```
 
 ---
