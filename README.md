@@ -225,40 +225,45 @@ Requires JWT Token
 Triggers Kafka event on creation 
 
 ---
-# Project Structure
+## Project Structure
 
-📦 payment-service
- ┣ 📂 src/main/java/com/example/payment
- ┃ ┣ 📂 controller
- ┃ ┣ 📂 service
- ┃ ┣ 📂 repository
- ┃ ┣ 📂 entity
- ┃ ┣ 📂 dto
- ┃ ┣ 📂 exception
- ┃ ┣ 📂 util
- ┃ ┣ 📂 config
- ┃ ┣ 📂 messaging
- ┃ ┣ 📂 event
- ┃ ┣ 📂 outbox
- ┃ ┣ 📂 idempotency
- ┃ ┣ 📂 strategy
- ┃ ┣ 📂 factory
- ┃ ┣ 📂 decorator
- ┃ ┣ 📂 observer
- ┃ ┣ 📂 proxy
- ┃ ┣ 📂 template
- ┃ ┗ 📜 PaymentApplication.java
- ┣ 📂 resources
- ┣ 📂 test
- ┣ 📂 k8s
- ┣ 📂 infra
- ┣ 📜 Dockerfile
- ┣ 📜 docker-compose.yml
- ┣ 📜 pom.xml
- ┣ 📜 azure-pipelines.yml
- ┗ 📜 README.md
-
----
+```plaintext
+payment-service
+│
+├── src/main/java/com/example/payment
+│   ├── controller        → REST API endpoints
+│   ├── service           → Business logic layer
+│   ├── repository        → Data access (JPA)
+│   ├── entity            → Database entities
+│   ├── dto               → Request/Response objects
+│   ├── exception         → Global exception handling
+│   ├── util              → Utility classes (JWT, helpers)
+│   ├── config            → Security, Kafka, Resilience configs
+│
+│   ├── messaging         → Kafka producer & consumer
+│   ├── event             → Event models (PaymentCreatedEvent)
+│   ├── outbox            → Transactional Outbox implementation
+│   ├── idempotency       → Idempotency handling logic
+│
+│   ├── strategy          → Strategy pattern
+│   ├── factory           → Factory pattern
+│   ├── decorator         → Decorator pattern
+│   ├── observer          → Observer pattern
+│   ├── proxy             → Proxy pattern
+│   ├── template          → Template pattern
+│
+│   └── PaymentApplication.java
+│
+├── src/main/resources
+├── src/test/java/com/example/payment
+├── k8s/
+├── infra/
+├── Dockerfile
+├── docker-compose.yml
+├── pom.xml
+├── azure-pipelines.yml
+└── README.md
+```
 
 # Design Patterns Implemented
 - Strategy Pattern → Payment processing logic
