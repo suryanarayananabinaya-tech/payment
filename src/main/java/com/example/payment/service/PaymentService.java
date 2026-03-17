@@ -1,65 +1,84 @@
 package com.example.payment.service;
 
 
-import com.example.payment.decorator.PaymentCircuitBreaker;
 import com.example.payment.decorator.PaymentLogging;
 import com.example.payment.dto.PaymentRequestDTO;
 import com.example.payment.dto.PaymentResponseDTO;
+import com.example.payment.entity.OutboxEvent;
 import com.example.payment.entity.Payment;
 import com.example.payment.entity.User;
-import com.example.payment.exception.ExternalServiceException;
+import com.example.payment.event.PaymentCreatedEvent;
 import com.example.payment.factory.PaymentFactory;
 import com.example.payment.model.PaymentRequest;
 import com.example.payment.model.PaymentStatus;
 import com.example.payment.model.PaymentType;
-import com.example.payment.observer.PaymentEvent;
 import com.example.payment.proxy.PaymentProxy;
+import com.example.payment.repository.OutboxEventRepository;
 import com.example.payment.repository.PaymentRepository;
 import com.example.payment.repository.UserRepository;
 import com.example.payment.strategy.PaymentStrategy;
-import com.example.payment.strategy.Report;
-import com.example.payment.strategy.ReportVisitor;
 import com.example.payment.template.DefaultPaymentProcessor;
 import com.example.payment.template.PaymentProcessor;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import org.springframework.context.ApplicationEventPublisher;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.transaction.Transactional;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class PaymentService {
 
 
-    private final ApplicationEventPublisher applicationEventPublisher;
-
     private final PaymentRepository paymentRepository;
 
     private final UserRepository userRepository;
 
-    private final CircuitBreakerRegistry circuitBreakerRegistry;
-
     private final PaymentFactory paymentFactory;
 
-    public PaymentService(ApplicationEventPublisher publisher,
-                          PaymentRepository paymentRepository, UserRepository userRepository,
-                          CircuitBreakerRegistry circuitBreakerRegistry, PaymentFactory paymentFactory) {
-        this.applicationEventPublisher = publisher;
+    private final PaymentExecutionService paymentExecutionService;
+
+    private final OutboxEventRepository outboxEventRepository;
+
+    private final ObjectMapper objectMapper;
+
+    public PaymentService(PaymentRepository paymentRepository,
+                          UserRepository userRepository,
+                          PaymentFactory paymentFactory, PaymentExecutionService paymentExecutionService, OutboxEventRepository outboxEventRepository, ObjectMapper objectMapper) {
         this.paymentRepository = paymentRepository;
         this.userRepository = userRepository;
-        this.circuitBreakerRegistry = circuitBreakerRegistry;
         this.paymentFactory = paymentFactory;
+        this.paymentExecutionService = paymentExecutionService;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
     }
 
-    PaymentStrategy paymentStrategy;
+    @Transactional
+    public PaymentResponseDTO processPayment(String userName ,String idempotencyKey, PaymentRequestDTO requestDTO) throws JsonProcessingException {
 
+        // 1) If idempotency key exists check previous payment
+        if (idempotencyKey != null && !idempotencyKey.isBlank()){
+            Optional<Payment> existingPayment =
+                    paymentRepository.findByIdempotencyKey(idempotencyKey);
+            if (existingPayment.isPresent()) {
+                Payment payment = existingPayment.get();
+                return PaymentResponseDTO.builder()
+                        .status(payment.getStatus())
+                        .message("Duplicate request - returning existing payment")
+                        .amount(payment.getAmount())
+                        .currency(payment.getCurrency())
+                        .paymentType(payment.getPaymentType())
+                        .transactionId(payment.getTransactionId())
+                        .build();
+            }
+        }
 
-    public PaymentResponseDTO processPayment(String userName , PaymentRequestDTO requestDTO) {
-
-        // 1) Validate payment type
+        // 2) Validate payment type
         PaymentType type = requestDTO.getPaymentType();
         if (type == null) {
             throw new IllegalArgumentException("INVALID PAYMENT TYPE");
@@ -76,8 +95,6 @@ public class PaymentService {
 
         // 3) Select strategy via DI factory
         PaymentStrategy strategy = paymentFactory.getStrategy(request.getPaymentType());
-
-
         // 4) Decorators / proxy
         strategy = new PaymentProxy(strategy);
         strategy = new PaymentLogging(strategy);
@@ -86,27 +103,48 @@ public class PaymentService {
         PaymentProcessor processor = new DefaultPaymentProcessor(strategy);
 
         // 6) Execute (circuit breaker via annotation)
-
-        executeWithCircuitBreaker(processor, request);
+        paymentExecutionService.execute(processor, request);
 
         //persist in DB
-        Payment payment = new Payment();
+        String transactionId = "TXN-" + UUID.randomUUID();
         User user = userRepository.findByUsername(userName)
                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
 
+        Payment payment = new Payment();
         payment.setUser(user);
-        String transactionId = "TXN-" + System.currentTimeMillis();
         payment.setTransactionId(transactionId); // generate unique txn id
         payment.setAmount(request.getAmount());
         payment.setCurrency(request.getCurrency());
         payment.setPaymentType(request.getPaymentType());
         payment.setStatus(PaymentStatus.SUCCESS);
         payment.setCreatedAt(LocalDateTime.now());
+        payment.setIdempotencyKey(idempotencyKey);
 
-        paymentRepository.save(payment);
+        Payment savedPayment = paymentRepository.save(payment);
 
-        // 8) Observer event
-        applicationEventPublisher.publishEvent(new PaymentEvent(request));
+        // 7) Publish Kafka event
+        PaymentCreatedEvent event = PaymentCreatedEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .transactionId(savedPayment.getTransactionId())
+                .userName(userName)
+                .amount(savedPayment.getAmount())
+                .currency(savedPayment.getCurrency())
+                .paymentType(savedPayment.getPaymentType().name())
+                .status(savedPayment.getStatus().name())
+                .traceId(MDC.get("traceId"))
+                .build();
+
+        // 8 Outbox pattern
+        OutboxEvent outboxEvent = OutboxEvent.builder()
+                .eventId(event.getEventId())
+                .aggregateType("PAYMENT")
+                .aggregateId(savedPayment.getTransactionId())
+                .topic("payment.created")
+                .payload(objectMapper.writeValueAsString(event))
+                .status("NEW")
+                .build();
+
+        outboxEventRepository.save(outboxEvent);
 
         // 9) API response
         return PaymentResponseDTO.builder()
@@ -117,26 +155,5 @@ public class PaymentService {
                 .paymentType(request.getPaymentType())
                 .transactionId(transactionId)
                 .build();
-    }
-
-    @CircuitBreaker(name = "paymentServiceCircuit", fallbackMethod = "fallbackPayment")
-    public void executeWithCircuitBreaker(PaymentProcessor processor, PaymentRequest request) {
-        processor.processPayment(request);
-    }
-
-    public void fallbackPayment(PaymentProcessor processor, PaymentRequest request, Throwable t) {
-        throw new ExternalServiceException("External payment service unavailable. Try later.");
-    }
-
-    public void generateReport() {
-        List<Report> reports = List.of(new SalesReport(), new InventoryReport());
-        //pdf//
-        ReportVisitor pdfReportVisitor = new PDFReportVisitor();
-        reports.forEach(report -> {report.accept(pdfReportVisitor);});
-
-        //csv//
-        ReportVisitor csvReportVisitor = new CSVReportVisitor();
-        reports.forEach(report -> {report.accept(csvReportVisitor);});
-
     }
 }

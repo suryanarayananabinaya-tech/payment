@@ -12,7 +12,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "payment")
+@Table(name = "payment",
+        indexes = {
+                @Index(name = "idx_transaction_id", columnList = "transaction_id"),
+                @Index(name = "idx_idempotency_key", columnList = "idempotency_key"),
+                @Index(name = "idx_user_id", columnList = "user_id")
+        })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -37,14 +42,22 @@ public class Payment {
     @Column(nullable = false)
     private PaymentStatus status;
 
-    @Column(name = "transaction_id", unique = true)
+    @Column(name = "transaction_id", nullable = false, unique = true)
     private String transactionId;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "idempotency_key", unique = true)
+    private String idempotencyKey;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id")
     private User user;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
 
 }
