@@ -44,7 +44,7 @@ stages:
           - checkout: self
             clean: true
 
-          - task: SonarQubePrepare@5
+          - task: SonarQubePrepare@7
             displayName: 'Prepare SonarQube analysis'
             inputs:
               SonarQube: '$(sonarServiceConnection)'
@@ -67,10 +67,10 @@ stages:
               publishJUnitResults: true
               testResultsFiles: '**/surefire-reports/TEST-*.xml'
 
-          - task: SonarQubeAnalyze@5
+          - task: SonarQubeAnalyze@7
             displayName: 'Run SonarQube analysis'
 
-          - task: SonarQubePublish@5
+          - task: SonarQubePublish@7
             displayName: 'Publish SonarQube quality gate result'
             inputs:
               pollingTimeoutSec: '300'
