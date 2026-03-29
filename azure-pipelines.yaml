@@ -26,7 +26,10 @@ variables:
     value: '21'
 
   - name: sonarServiceConnection
-    value: 'SonarQube-Connection'
+    value: 'SonarCloud-Connection'
+
+  - name: sonarOrganization
+    value: 'YOUR_SONARCLOUD_ORG'
 
   - name: sonarProjectKey
     value: 'payment-service'
@@ -43,22 +46,23 @@ stages:
         steps:
           - checkout: self
             clean: true
+            fetchDepth: 0
 
-          - task: SonarQubePrepare@7
-            displayName: 'Prepare SonarQube analysis'
+          - task: SonarCloudPrepare@4
+            displayName: 'Prepare SonarCloud analysis'
             inputs:
-              SonarQube: '$(sonarServiceConnection)'
-              scannerMode: 'Other'
-              configMode: 'manual'
-              cliProjectKey: '$(sonarProjectKey)'
-              cliProjectName: '$(sonarProjectName)'
+              SonarCloud: '$(sonarServiceConnection)'
+              organization: '$(sonarOrganization)'
+              scannerMode: 'other'
               extraProperties: |
+                sonar.projectKey=$(sonarProjectKey)
+                sonar.projectName=$(sonarProjectName)
                 sonar.java.binaries=target/classes
                 sonar.junit.reportPaths=target/surefire-reports
                 sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
           - task: Maven@4
-            displayName: 'Maven: clean verify'
+            displayName: 'Maven: clean verify + SonarCloud'
             inputs:
               mavenPomFile: 'pom.xml'
               goals: 'clean verify'
@@ -66,12 +70,10 @@ stages:
               jdkVersionOption: '1.$(javaVersion)'
               publishJUnitResults: true
               testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              sonarQubeRunAnalysis: true
 
-          - task: SonarQubeAnalyze@7
-            displayName: 'Run SonarQube analysis'
-
-          - task: SonarQubePublish@7
-            displayName: 'Publish SonarQube quality gate result'
+          - task: SonarCloudPublish@4
+            displayName: 'Publish SonarCloud quality gate result'
             inputs:
               pollingTimeoutSec: '300'
 
