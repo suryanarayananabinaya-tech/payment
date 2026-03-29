@@ -2,6 +2,7 @@ package com.example.payment.messaging;
 
 import com.example.payment.event.PaymentCreatedEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.MDC;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -11,11 +12,16 @@ import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PaymentEventProducer {
 
     private final KafkaTemplate<String, PaymentCreatedEvent> kafkaTemplate;
 
     public void publishPaymentCreated(PaymentCreatedEvent event) {
+        if (event == null || event.getTransactionId() == null) {
+            throw new IllegalArgumentException("Invalid payment event");
+        }
+
         String traceId = MDC.get("traceId");
 
         ProducerRecord<String, PaymentCreatedEvent> record =
@@ -25,6 +31,16 @@ public class PaymentEventProducer {
             record.headers().add("traceId", traceId.getBytes(StandardCharsets.UTF_8));
         }
 
-        kafkaTemplate.send(record);
+        log.info("Publishing payment event. TransactionId={}", event.getTransactionId());
+
+        kafkaTemplate.send(record).whenComplete((result, ex) -> {
+            if (ex != null) {
+                log.error("Failed to send payment event {}", event.getTransactionId(), ex);
+            } else {
+                log.info("Message sent successfully. Offset={}, Partition={}",
+                        result.getRecordMetadata().offset(),
+                        result.getRecordMetadata().partition());
+            }
+        });
     }
 }

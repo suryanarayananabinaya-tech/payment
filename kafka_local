@@ -1,0 +1,113 @@
+# 🚀 Kafka Local Setup Guide (Docker)
+
+This document explains how to start Kafka locally and use it with the Payment Service.
+
+---
+
+## 📌 Prerequisites
+
+* Docker Desktop installed and running
+* Port `9092` available
+
+---
+
+## 🐳 Option 1: Using Docker Compose (Recommended)
+
+### Step 1: Start Kafka
+
+```bash
+docker-compose up -d
+```
+
+---
+
+### Step 2: Verify Kafka is running
+
+```bash
+docker ps
+```
+
+You should see a container named `kafka`.
+
+---
+
+### Step 3: Create Kafka Topic
+
+```bash
+docker exec kafka /opt/kafka/bin/kafka-topics.sh --create \
+--topic payment.created \
+--bootstrap-server localhost:9092 \
+--partitions 1 \
+--replication-factor 1
+```
+
+---
+
+### Step 4: Verify Topic
+
+```bash
+docker exec kafka /opt/kafka/bin/kafka-topics.sh --list \
+--bootstrap-server localhost:9092
+```
+
+Expected output:
+
+```
+payment.created
+```
+
+---
+
+### Step 5: Stop Kafka
+
+```bash
+docker-compose down
+```
+
+---
+
+## 🐳 Option 2: Without Docker Compose
+
+### Start Kafka
+
+```bash
+docker run -d --name kafka --restart unless-stopped -p 9092:9092 apache/kafka:latest
+```
+
+---
+
+### Stop Kafka
+
+```bash
+docker stop kafka
+```
+
+---
+
+### Start Existing Container
+
+```bash
+docker start kafka
+```
+
+---
+
+## ⚙️ Spring Boot Configuration
+
+Add in `application.properties`:
+
+```properties
+spring.kafka.bootstrap-servers=localhost:9092
+```
+
+---
+
+## 🔄 How It Works in This Project
+
+1. Payment is created
+2. Event is stored in Outbox table
+3. Scheduler reads pending events
+4. Event is published to Kafka topic `payment.created`
+5. Consumer processes event
+
+---

@@ -1,4 +1,4 @@
-package com.example.payment.Security;
+package com.example.payment.config;
 
 
 import org.springframework.context.annotation.Bean;
@@ -14,10 +14,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
 
+    private final PaymentRateLimitFilter paymentRateLimitFilter;
     private final JWTAuthenticationFilter jwtAuthenticationFilter;
 
 
-    public SecurityConfig(JWTAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JWTAuthenticationFilter jwtAuthenticationFilter, PaymentRateLimitFilter paymentRateLimitFilter) {
+        this.paymentRateLimitFilter = paymentRateLimitFilter;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
@@ -26,7 +28,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/v1/auth/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
@@ -34,6 +36,7 @@ public class SecurityConfig {
                 );
 
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(paymentRateLimitFilter, JWTAuthenticationFilter.class);
         return http.build();
     }
 
