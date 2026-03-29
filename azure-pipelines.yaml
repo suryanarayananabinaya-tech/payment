@@ -20,6 +20,12 @@ variables:
     value: 'drop'
   - name: javaVersion
     value: '21'
+  - name: sonarServiceConnection
+    value: 'SonarQube-Connection'
+  - name: sonarProjectKey
+    value: 'payment-service'
+  - name: sonarProjectName
+    value: 'Payment Service'
 
 stages:
   - stage: Build
@@ -28,15 +34,32 @@ stages:
       - job: BuildJob
         displayName: Maven Build
         steps:
+          - task: SonarQubePrepare@5
+            displayName: 'Prepare SonarQube analysis'
+            inputs:
+              SonarQube: '$(sonarServiceConnection)'
+              scannerMode: 'Other'
+              configMode: 'manual'
+              cliProjectKey: '$(sonarProjectKey)'
+              cliProjectName: '$(sonarProjectName)'
+
           - task: Maven@4
-            displayName: 'Maven: clean package'
+            displayName: 'Maven: clean verify'
             inputs:
               mavenPomFile: 'pom.xml'
-              goals: 'clean package'
-              options: '-DskipTests'
+              goals: 'clean verify'
               javaHomeOption: 'JDKVersion'
               jdkVersionOption: '1.$(javaVersion)'
-              publishJUnitResults: false
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+
+          - task: SonarQubeAnalyze@5
+            displayName: 'Run SonarQube analysis'
+
+          - task: SonarQubePublish@5
+            displayName: 'Publish SonarQube quality gate result'
+            inputs:
+              pollingTimeoutSec: '300'
 
           - task: CopyFiles@2
             displayName: 'Copy JAR to artifact staging'
@@ -62,7 +85,6 @@ stages:
           runOnce:
             deploy:
               steps:
-                # ✅ Explicit pipeline artifact download (fixes your error)
                 - task: DownloadPipelineArtifact@2
                   displayName: 'Download pipeline artifact'
                   inputs:
@@ -78,17 +100,17 @@ stages:
                     appSettings: |
                       [
                         { "name": "SPRING_PROFILES_ACTIVE", "value": "dev", "slotSetting": false },
-                      
+
                         { "name": "JWT_SECRET", "value": "$(JWT_SECRET)", "slotSetting": true },
                         { "name": "DB_USERNAME", "value": "$(DB_USERNAME)", "slotSetting": true },
                         { "name": "DB_PASSWORD", "value": "$(DB_PASSWORD)", "slotSetting": true },
-                      
+
                         { "name": "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "value": "health,info,metrics", "slotSetting": false },
                         { "name": "MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS", "value": "always", "slotSetting": false },
-                      
+
                         { "name": "LOGGING_LEVEL_ROOT", "value": "INFO", "slotSetting": false },
                         { "name": "LOGGING_LEVEL_COM_EXAMPLE_PAYMENT", "value": "INFO", "slotSetting": false },
-                      
+
                         { "name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "value": "$(APPINSIGHTS_CONNECTION_STRING)", "slotSetting": true },
                         { "name": "APPLICATIONINSIGHTS_ROLE_NAME", "value": "payment-service-dev", "slotSetting": false }
                       ]

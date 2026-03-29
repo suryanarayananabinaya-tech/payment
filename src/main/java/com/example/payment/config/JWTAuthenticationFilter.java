@@ -1,4 +1,4 @@
-package com.example.payment.Security;
+package com.example.payment.config;
 
 import com.example.payment.Util.JWTUtil;
 import jakarta.servlet.FilterChain;
