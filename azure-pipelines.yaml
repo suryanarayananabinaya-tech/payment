@@ -32,7 +32,7 @@ variables:
     value: 'suryanarayananabinaya'
 
   - name: sonarProjectKey
-    value: 'payment'
+    value: 'suryanarayananabinaya_payment'
 
   - name: sonarProjectName
     value: 'payment'
