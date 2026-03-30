@@ -27,7 +27,7 @@ public class PaymentEventProducer {
         }
 
         String traceId = MDC.get("traceId");
-
+        log.info("Kafka topic configured: {}", paymentCreatedTopic);
         ProducerRecord<String, PaymentCreatedEvent> record =
                 new ProducerRecord<>(paymentCreatedTopic, event.getTransactionId(), event);
 
