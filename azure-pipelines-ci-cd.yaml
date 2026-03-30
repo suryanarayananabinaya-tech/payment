@@ -28,9 +28,9 @@ variables:
   - name: sonarServiceConnection
     value: 'SonarQube-Connection'
   - name: sonarProjectKey
-    value: 'payment-service'
+    value: 'payment'
   - name: sonarProjectName
-    value: 'Payment Service'
+    value: 'payment'
 
 stages:
   - stage: CI_Build

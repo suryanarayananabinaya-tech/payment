@@ -32,10 +32,10 @@ variables:
     value: 'suryanarayananabinaya'
 
   - name: sonarProjectKey
-    value: 'payment-service'
+    value: 'payment'
 
   - name: sonarProjectName
-    value: 'Payment Service'
+    value: 'payment'
 
 stages:
   - stage: Build
