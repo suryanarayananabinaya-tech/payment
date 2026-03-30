@@ -3,7 +3,10 @@ package com.example.payment.config;
 import io.github.bucket4j.distributed.ExpirationAfterWriteStrategy;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
+import io.lettuce.core.ClientOptions;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisURI;
+import io.lettuce.core.TimeoutOptions;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
@@ -23,9 +26,23 @@ public class RedisConfig {
     @Value("${spring.data.redis.port}")
     private int redisPort;
 
+    @Value("${spring.data.redis.password}")
+    private String redisPassword;
+
     @Bean(destroyMethod = "shutdown")
     public RedisClient redisClient() {
-        return RedisClient.create("redis://" + redisHost + ":" + redisPort);
+        RedisURI redisUri = RedisURI.Builder.redis(redisHost, redisPort)
+                .withSsl(true)
+                .withPassword(redisPassword.toCharArray())
+                .withTimeout(Duration.ofSeconds(5))
+                .build();
+
+        RedisClient client = RedisClient.create(redisUri);
+        client.setOptions(ClientOptions.builder()
+                .timeoutOptions(TimeoutOptions.enabled(Duration.ofSeconds(5)))
+                .build());
+
+        return client;
     }
 
     @Bean(destroyMethod = "close")
