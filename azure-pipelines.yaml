@@ -3,6 +3,7 @@ trigger:
     include:
       - dev
       - feature/*
+      - main
 
 pool:
   vmImage: ubuntu-latest
@@ -39,7 +40,7 @@ variables:
 
 stages:
   - stage: Build
-    displayName: Build and Analyze (DEV)
+    displayName: Build and Analyze
     jobs:
       - job: BuildJob
         displayName: Maven Build
@@ -50,6 +51,7 @@ stages:
 
           - task: SonarCloudPrepare@4
             displayName: 'Prepare SonarCloud analysis'
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
             inputs:
               SonarCloud: '$(sonarServiceConnection)'
               organization: '$(sonarOrganization)'
@@ -62,10 +64,10 @@ stages:
                 sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
           - task: Maven@4
-            displayName: 'Maven: clean verify + SonarCloud'
+            displayName: 'Maven: clean verify'
             inputs:
               mavenPomFile: 'pom.xml'
-              goals: 'clean verify sonar:sonar'
+              goals: 'clean verify'
               options: '-Dspring.profiles.active=test'
               sonarQubeRunAnalysis: false
               javaHomeOption: 'JDKVersion'
@@ -73,8 +75,13 @@ stages:
               publishJUnitResults: true
               testResultsFiles: '**/surefire-reports/TEST-*.xml'
 
+          - task: SonarCloudAnalyze@4
+            displayName: 'Run SonarCloud analysis'
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+
           - task: SonarCloudPublish@4
             displayName: 'Publish SonarCloud quality gate result'
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
             inputs:
               pollingTimeoutSec: '300'
 
@@ -117,7 +124,7 @@ stages:
                     resourceGroupName: '$(resourceGroupName)'
                     appSettings: |
                       [
-                        { "name": "SPRING_PROFILES_ACTIVE", "value": "$(SPRING_PROFILES_ACTIVE)", "slotSetting": false },
+                        { "name": "SPRING_PROFILES_ACTIVE", "value": "dev", "slotSetting": false },
 
                         { "name": "JWT_SECRET", "value": "$(JWT_SECRET)", "slotSetting": true },
                         { "name": "JWT_EXPIRATION", "value": "$(JWT_EXPIRATION)", "slotSetting": false },
