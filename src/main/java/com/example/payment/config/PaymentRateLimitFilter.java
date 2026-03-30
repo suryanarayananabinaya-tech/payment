@@ -10,6 +10,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 @Component
+@ConditionalOnProperty(name = "rate.limit.enabled", havingValue = "true", matchIfMissing = true)
 public class PaymentRateLimitFilter extends OncePerRequestFilter {
 
     private final ProxyManager<String> proxyManager;

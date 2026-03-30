@@ -66,6 +66,7 @@ stages:
             inputs:
               mavenPomFile: 'pom.xml'
               goals: 'clean verify sonar:sonar'
+              options: '-Dspring.profiles.active=test'
               sonarQubeRunAnalysis: false
               javaHomeOption: 'JDKVersion'
               jdkVersionOption: '1.$(javaVersion)'
