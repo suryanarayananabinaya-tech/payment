@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: payment-sa
+      volumes:
+        - name: kv-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "payment-kv"
+      containers:
+        - name: payment-service
+          image: payacrdev12345.azurecr.io/payment-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: kv-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "dev"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              export JWT_SECRET="$(cat /mnt/secrets-store/jwt-secret)"
+              export DB_URL="$(cat /mnt/secrets-store/db-url)"
+              export DB_USERNAME="$(cat /mnt/secrets-store/db-username)"
+              export DB_PASSWORD="$(cat /mnt/secrets-store/db-password)"
+              export REDIS_HOST="$(cat /mnt/secrets-store/redis-host)"
+              export REDIS_PORT="$(cat /mnt/secrets-store/redis-port)"
+              export REDIS_PASSWORD="$(cat /mnt/secrets-store/redis-password)"
+              export REDIS_SSL="$(cat /mnt/secrets-store/redis-ssl)"
+              export KAFKA_BOOTSTRAP_SERVERS="$(cat /mnt/secrets-store/kafka-bootstrap-servers)" 
+              export KAFKA_SECURITY_PROTOCOL="$(cat /mnt/secrets-store/kafka-security-protocol)"
+              export KAFKA_SASL_MECHANISM="$(cat /mnt/secrets-store/kafka-sasl-mechanism)"
+              export KAFKA_SASL_JAAS_CONFIG="$(cat /mnt/secrets-store/kafka-sasl-jaas-config)"
+              export KAFKA_TOPIC_PAYMENT_CREATED="$(cat /mnt/secrets-store/kafka-topic-payment-created)"
+              export KAFKA_CONSUMER_GROUP="$(cat /mnt/secrets-store/kafka-consumer-group)"
+              export KAFKA_AUTO_OFFSET_RESET="$(cat /mnt/secrets-store/kafka-auto-offset-reset)"
+              exec java -jar /app/app.jar
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15

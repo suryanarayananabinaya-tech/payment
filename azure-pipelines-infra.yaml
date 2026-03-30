@@ -1,0 +1,35 @@
+trigger: none   # run manually for infra
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureSubscription: 'Abinaya-Azure-dev-Connection'
+  resourceGroup: 'springboot-rg-dev'
+
+stages:
+  - stage: Infra
+    displayName: 'Deploy Infra (AKS + ACR + Key Vault + Log Analytics)'
+    jobs:
+      - job: DeployInfra
+        displayName: 'Bicep Deployment'
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: 'Bicep deploy'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                echo "Using subscription:"
+                az account show --query "{name:name, id:id}" -o table
+                
+                echo "Deploying Bicep to RG: $(resourceGroup)"
+                az deployment group create \
+                  --resource-group $(resourceGroup) \
+                  --template-file infra/main.bicep \
+                  --parameters @infra/main.dev.parameters.json \
+                  --output table
