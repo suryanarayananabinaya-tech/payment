@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +18,9 @@ public class PaymentEventProducer {
 
     private final KafkaTemplate<String, PaymentCreatedEvent> kafkaTemplate;
 
+    @Value("${payment.kafka.topic.created}")
+    private String paymentCreatedTopic;
+
     public void publishPaymentCreated(PaymentCreatedEvent event) {
         if (event == null || event.getTransactionId() == null) {
             throw new IllegalArgumentException("Invalid payment event");
@@ -25,7 +29,7 @@ public class PaymentEventProducer {
         String traceId = MDC.get("traceId");
 
         ProducerRecord<String, PaymentCreatedEvent> record =
-                new ProducerRecord<>("payment.created", event.getTransactionId(), event);
+                new ProducerRecord<>(paymentCreatedTopic, event.getTransactionId(), event);
 
         if (traceId != null) {
             record.headers().add("traceId", traceId.getBytes(StandardCharsets.UTF_8));
