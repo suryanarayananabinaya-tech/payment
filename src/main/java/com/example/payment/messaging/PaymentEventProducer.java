@@ -31,13 +31,15 @@ public class PaymentEventProducer {
     private String paymentCreatedTopic;
 
     public void publishPaymentCreated(PaymentCreatedEvent event) {
-        log.info("BOOTSTRAP: {}", environment.getProperty("spring.kafka.bootstrap-servers"));
         if (event == null || event.getTransactionId() == null) {
             throw new IllegalArgumentException("Invalid payment event");
         }
 
+        log.info("BOOTSTRAP: {}", environment.getProperty("spring.kafka.bootstrap-servers"));
+
         String traceId = MDC.get("traceId");
         log.info("Kafka topic configured: {}", paymentCreatedTopic);
+
         ProducerRecord<String, PaymentCreatedEvent> record =
                 new ProducerRecord<>(paymentCreatedTopic, event.getTransactionId(), event);
 
