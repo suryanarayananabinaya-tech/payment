@@ -1,52 +1,95 @@
 trigger:
-  - main
+  branches:
+    include:
+      - dev
+      - feature/*
 
 pool:
   vmImage: ubuntu-latest
 
 variables:
-  azureSubscription: 'Abinaya-Azure-dev-Connection'
-  resourceGroup: 'springboot-rg-dev'
-  aksName: 'pay-aks-dev'
-  acrName: 'payacrdev12345'
-  namespace: 'dev'
-  imageName: 'payment-service'
-  imageTag: '$(Build.BuildId)'
+  - group: vg-payment-dev-secrets
+  - name: azureSubscription
+    value: 'Abinaya-Azure-dev-Connection'
+  - name: resourceGroup
+    value: 'springboot-rg-dev'
+  - name: aksName
+    value: 'pay-aks-dev'
+  - name: acrName
+    value: 'payacrdev12345'
+  - name: namespace
+    value: 'dev'
+  - name: imageName
+    value: 'payment-service'
+  - name: imageTag
+    value: '$(Build.BuildId)'
+  - name: javaVersion
+    value: '21'
+  - name: sonarServiceConnection
+    value: 'SonarQube-Connection'
+  - name: sonarProjectKey
+    value: 'suryanarayananabinaya_payment'
+  - name: sonarProjectName
+    value: 'payment'
 
 stages:
-  # -----------------------
-  # CI: Build + Push Image
-  # -----------------------
   - stage: CI_Build
-    displayName: "CI - Build & Push Image to ACR"
+    displayName: "CI - Build, Test, Sonar, and Push Image to ACR"
     jobs:
       - job: BuildPush
+        displayName: "Build, Test, Analyze, Push"
         steps:
           - checkout: self
+            clean: true
+
+          - task: SonarQubePrepare@5
+            displayName: 'Prepare SonarQube analysis'
+            inputs:
+              SonarQube: '$(sonarServiceConnection)'
+              scannerMode: 'Other'
+              configMode: 'manual'
+              cliProjectKey: '$(sonarProjectKey)'
+              cliProjectName: '$(sonarProjectName)'
+
+          - task: Maven@4
+            displayName: 'Maven: clean verify'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'clean verify'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.$(javaVersion)'
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+
+          - task: SonarQubeAnalyze@5
+            displayName: 'Run SonarQube analysis'
+
+          - task: SonarQubePublish@5
+            displayName: 'Publish SonarQube quality gate result'
+            inputs:
+              pollingTimeoutSec: '300'
 
           - task: AzureCLI@2
-            displayName: "ACR Build (Dockerfile builds jar inside container) + Push"
+            displayName: "ACR Build and Push"
             inputs:
               azureSubscription: $(azureSubscription)
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
-                echo "Building image: $(imageName):$(imageTag)"
                 az acr build \
                   -g "$(resourceGroup)" \
                   -r "$(acrName)" \
                   -t "$(imageName):$(imageTag)" \
                   .
 
-  # -----------------------
-  # CD: Deploy to AKS
-  # -----------------------
   - stage: CD_Deploy
     displayName: "CD - Deploy to AKS"
     dependsOn: CI_Build
+    condition: succeeded()
     jobs:
       - job: Deploy
+        displayName: "Deploy to AKS"
         steps:
           - checkout: self
 
@@ -58,29 +101,40 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
-                
-                # Get ACR login server
+
                 ACR_LOGIN_SERVER=$(az acr show -g "$(resourceGroup)" -n "$(acrName)" --query loginServer -o tsv)
                 FULL_IMAGE="$ACR_LOGIN_SERVER/$(imageName):$(imageTag)"
                 echo "Deploying image: $FULL_IMAGE"
-                
-                # Connect to AKS
+                echo "AKS Cluster: $(aksName)"
+                echo "Namespace: $(namespace)"
+                echo "Image: $FULL_IMAGE"
+
                 az aks get-credentials -g "$(resourceGroup)" -n "$(aksName)" --overwrite-existing
-                
-                # Apply k8s manifests (use your exact filenames)
+
                 kubectl apply -f k8s/namespace.yaml
                 kubectl apply -f k8s/serviceaccount.yaml
                 kubectl apply -f k8s/secretprovider.yaml
-                kubectl apply -f k8s/service.yaml
                 kubectl apply -f k8s/deployment.yaml
-                
-                # Update image (no need to change deployment.yaml)
+                kubectl apply -f k8s/service.yaml
+
                 kubectl -n "$(namespace)" set image deployment/payment-service \
                   payment-service="$FULL_IMAGE"
-                
-                # Wait until rollout completes
-                kubectl -n "$(namespace)" rollout status deployment/payment-service --timeout=180s
-                
-                # Show status
+
+                if ! kubectl -n "$(namespace)" rollout status deployment/payment-service --timeout=300s; then
+                  echo "Deployment failed. Collecting debug info..."
+
+                   kubectl -n "$(namespace)" get pods -o wide || true
+                   kubectl -n "$(namespace)" describe deployment payment-service || true
+                   kubectl -n "$(namespace)" describe pods || true
+                   kubectl -n "$(namespace)" get events --sort-by=.lastTimestamp | tail -n 50 || true
+                   kubectl -n "$(namespace)" rollout history deployment/payment-service || true
+
+                   for pod in $(kubectl -n "$(namespace)" get pods -o name); do
+                     echo "Logs for $pod"
+                     kubectl -n "$(namespace)" logs "$pod" --all-containers=true --tail=200 || true
+                   done
+                   exit 1
+                fi
+
                 kubectl -n "$(namespace)" get pods
                 kubectl -n "$(namespace)" get svc payment-service-svc

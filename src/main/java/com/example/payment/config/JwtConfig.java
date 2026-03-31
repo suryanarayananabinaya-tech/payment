@@ -1,4 +1,4 @@
-package com.example.payment.Security;
+package com.example.payment.config;
 
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;

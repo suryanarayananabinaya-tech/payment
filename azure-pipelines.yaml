@@ -3,6 +3,7 @@ trigger:
     include:
       - dev
       - feature/*
+      - main
 
 pool:
   vmImage: ubuntu-latest
@@ -12,31 +13,76 @@ variables:
 
   - name: azureSubscription
     value: 'Abinaya-Azure-dev-Connection'
+
   - name: appName
     value: 'dev-abinaya-eastus-webapp'
+
   - name: resourceGroupName
     value: 'springboot-rg-dev'
+
   - name: artifactName
     value: 'drop'
+
   - name: javaVersion
     value: '21'
 
+  - name: sonarServiceConnection
+    value: 'SonarCloud-Connection'
+
+  - name: sonarOrganization
+    value: 'suryanarayananabinaya'
+
+  - name: sonarProjectKey
+    value: 'suryanarayananabinaya_payment'
+
+  - name: sonarProjectName
+    value: 'payment'
+
 stages:
   - stage: Build
-    displayName: Build (DEV)
+    displayName: Build and Analyze
     jobs:
       - job: BuildJob
-        displayName: Maven Build
         steps:
+          - checkout: self
+            clean: true
+            fetchDepth: 0
+
+          - task: SonarCloudPrepare@4
+            displayName: 'Prepare SonarCloud analysis'
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+            inputs:
+              SonarCloud: '$(sonarServiceConnection)'
+              organization: '$(sonarOrganization)'
+              scannerMode: 'Other'
+              extraProperties: |
+                sonar.projectKey=$(sonarProjectKey)
+                sonar.projectName=$(sonarProjectName)
+                sonar.java.binaries=target/classes
+                sonar.junit.reportPaths=target/surefire-reports
+                sonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+
           - task: Maven@4
-            displayName: 'Maven: clean package'
+            displayName: 'Maven: clean verify'
             inputs:
               mavenPomFile: 'pom.xml'
-              goals: 'clean package'
-              options: '-DskipTests'
+              goals: 'clean verify'
+              options: '-Dspring.profiles.active=test'
+              sonarQubeRunAnalysis: false
               javaHomeOption: 'JDKVersion'
               jdkVersionOption: '1.$(javaVersion)'
-              publishJUnitResults: false
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+
+          - task: SonarCloudAnalyze@4
+            displayName: 'Run SonarCloud analysis'
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+
+          - task: SonarCloudPublish@4
+            displayName: 'Publish SonarCloud quality gate result'
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+            inputs:
+              pollingTimeoutSec: '300'
 
           - task: CopyFiles@2
             displayName: 'Copy JAR to artifact staging'
@@ -54,6 +100,7 @@ stages:
   - stage: Deploy
     displayName: Deploy to Azure App Service (DEV)
     dependsOn: Build
+    condition: succeeded()
     jobs:
       - deployment: DeployJob
         displayName: Deploy DEV
@@ -62,40 +109,62 @@ stages:
           runOnce:
             deploy:
               steps:
-                # ✅ Explicit pipeline artifact download (fixes your error)
                 - task: DownloadPipelineArtifact@2
                   displayName: 'Download pipeline artifact'
                   inputs:
                     artifact: '$(artifactName)'
                     path: '$(Pipeline.Workspace)/$(artifactName)'
 
-                - task: AzureAppServiceSettings@1
+                - task: AzureCLI@2
                   displayName: 'Configure App Service settings (DEV)'
                   inputs:
-                    azureSubscription: $(azureSubscription)
-                    appName: $(appName)
-                    resourceGroupName: $(resourceGroupName)
-                    appSettings: |
-                      [
-                        { "name": "SPRING_PROFILES_ACTIVE", "value": "dev", "slotSetting": false },
-                      
-                        { "name": "JWT_SECRET", "value": "$(JWT_SECRET)", "slotSetting": true },
-                        { "name": "DB_USERNAME", "value": "$(DB_USERNAME)", "slotSetting": true },
-                        { "name": "DB_PASSWORD", "value": "$(DB_PASSWORD)", "slotSetting": true },
-                      
-                        { "name": "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "value": "health,info,metrics", "slotSetting": false },
-                        { "name": "MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS", "value": "always", "slotSetting": false },
-                      
-                        { "name": "LOGGING_LEVEL_ROOT", "value": "INFO", "slotSetting": false },
-                        { "name": "LOGGING_LEVEL_COM_EXAMPLE_PAYMENT", "value": "INFO", "slotSetting": false },
-                      
-                        { "name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "value": "$(APPINSIGHTS_CONNECTION_STRING)", "slotSetting": true },
-                        { "name": "APPLICATIONINSIGHTS_ROLE_NAME", "value": "payment-service-dev", "slotSetting": false }
-                      ]
+                    azureSubscription: '$(azureSubscription)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      az webapp config appsettings set \
+                        --resource-group "$(resourceGroupName)" \
+                        --name "$(appName)" \
+                        --settings \
+                          SPRING_PROFILES_ACTIVE=dev \
+                          JWT_SECRET='$(JWT_SECRET)' \
+                          JWT_EXPIRATION='$(JWT_EXPIRATION)' \
+                          DB_URL='$(DB_URL)' \
+                          DB_USERNAME='$(DB_USERNAME)' \
+                          DB_PASSWORD='$(DB_PASSWORD)' \
+                          REDIS_HOST='$(REDIS_HOST)' \
+                          REDIS_PORT='$(REDIS_PORT)' \
+                          REDIS_PASSWORD='$(REDIS_PASSWORD)' \
+                          REDIS_SSL='$(REDIS_SSL)' \
+                          KAFKA_BOOTSTRAP_SERVERS='$(KAFKA_BOOTSTRAP_SERVERS)' \
+                          KAFKA_SECURITY_PROTOCOL='$(KAFKA_SECURITY_PROTOCOL)' \
+                          KAFKA_SASL_MECHANISM='$(KAFKA_SASL_MECHANISM)' \
+                          KAFKA_SASL_JAAS_CONFIG='$(KAFKA_SASL_JAAS_CONFIG)' \
+                          KAFKA_TOPIC_PAYMENT_CREATED='$(KAFKA_TOPIC_PAYMENT_CREATED)' \
+                          KAFKA_CONSUMER_GROUP='$(KAFKA_CONSUMER_GROUP)' \
+                          KAFKA_AUTO_OFFSET_RESET='$(KAFKA_AUTO_OFFSET_RESET)' \
+                          JPA_DDL_AUTO='$(JPA_DDL_AUTO)' \
+                          APPLICATIONINSIGHTS_CONNECTION_STRING='$(APPLICATIONINSIGHTS_CONNECTION_STRING)' \
+                          APPLICATIONINSIGHTS_ROLE_NAME='payment-service-dev' \
+                          MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE='health,info,metrics' \
+                          MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS='always' \
+                          MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED='true' \
+                          MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED='true' \
+                          MANAGEMENT_HEALTH_READINESSSTATE_ENABLED='true' \
+                          MANAGEMENT_HEALTH_CIRCUITBREAKERS_ENABLED='true' \
+                          LOGGING_LEVEL_ROOT='INFO' \
+                          LOGGING_LEVEL_COM_EXAMPLE_PAYMENT='INFO' \
+                          WEBSITES_PORT='8080'
 
                 - task: AzureWebApp@1
                   displayName: 'Deploy JAR to App Service (DEV)'
                   inputs:
-                    azureSubscription: $(azureSubscription)
-                    appName: $(appName)
+                    azureSubscription: '$(azureSubscription)'
+                    appName: '$(appName)'
                     package: '$(Pipeline.Workspace)/$(artifactName)/**/*.jar'
+
+                - script: |
+                    echo "Waiting for app to start..."
+                    sleep 60
+                    curl -f "https://$(appName).azurewebsites.net/actuator/health" || exit 1
+                  displayName: 'Health check - actuator'
