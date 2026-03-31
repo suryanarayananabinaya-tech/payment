@@ -48,7 +48,7 @@ H --> I[Outbox Pattern]
 I --> J[(Database)]
 I --> K[Kafka Producer]
 
-K --> L[Kafka Topic: payment-created]
+K --> L[Kafka Topic: payment.created]
 
 L --> M[Kafka Consumer]
 M --> N[Downstream Processing]
@@ -133,7 +133,7 @@ Monitoring
 
 2. Event-Driven Architecture (Kafka)
 
-- Payment creation triggers an event → payment-created topic
+- Payment creation triggers an event → payment.created topic
 - Producer publishes events reliably
 - Consumer processes downstream workflows asynchronously
 
