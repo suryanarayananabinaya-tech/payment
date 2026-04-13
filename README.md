@@ -20,6 +20,8 @@ The project simulates a production-grade payment processing system and demonstra
 
 - Fault tolerance using Resilience4j (Circuit Breaker & Retry)
 
+- Redis-based Token Bucket rate limiting to control API traffic and prevent abuse
+
 - Containerization using Docker and orchestration via Kubernetes
 
 - CI/CD pipelines using Azure DevOps
@@ -35,7 +37,10 @@ flowchart TD
 
 A[Client Application] --> B[Spring Boot REST API]
 
-B --> C[JWT Authentication]
+B --> RL[Redis Rate Limiter<br>(Token Bucket)]
+RL -->|Allowed| C[JWT Authentication]
+RL -->|Rejected| ERR[429 Too Many Requests]
+
 C --> D[Security Filter]
 
 D --> E[Controller Layer]
@@ -43,7 +48,8 @@ E --> F[Service Layer]
 
 F --> G[Business Logic]
 G --> H[Idempotency Check]
-H --> I[Outbox Pattern]
+H -->|Duplicate| RESP[Return Cached Response]
+H -->|New Request| I[Outbox Pattern]
 
 I --> J[(Database)]
 I --> K[Kafka Producer]
@@ -53,6 +59,7 @@ K --> L[Kafka Topic: payment.created]
 L --> M[Kafka Consumer]
 M --> N[Downstream Processing]
 
+%% Resilience
 subgraph Resilience
 R1[Retry Mechanism]
 R2[Circuit Breaker]
@@ -61,16 +68,18 @@ end
 F --> R1
 F --> R2
 
+%% Cloud Deployment
 subgraph Cloud Deployment
 O[Docker]
 P[Kubernetes]
-Q[Azure App Service]
+Q[Azure App Service / AKS]
 end
 
 B --> O
 O --> P
 P --> Q
 
+%% DevOps
 subgraph DevOps
 S[GitHub]
 T[Azure DevOps Pipeline]
