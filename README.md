@@ -59,7 +59,6 @@ K --> L[Kafka Topic: payment.created]
 L --> M[Kafka Consumer]
 M --> N[Downstream Processing]
 
-%% Resilience
 subgraph Resilience
 R1[Retry Mechanism]
 R2[Circuit Breaker]
@@ -68,7 +67,6 @@ end
 F --> R1
 F --> R2
 
-%% Cloud Deployment
 subgraph Cloud Deployment
 O[Docker]
 P[Kubernetes]
@@ -79,7 +77,6 @@ B --> O
 O --> P
 P --> Q
 
-%% DevOps
 subgraph DevOps
 S[GitHub]
 T[Azure DevOps Pipeline]
