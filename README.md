@@ -32,52 +32,52 @@ This project reflects real-world enterprise backend architecture used in banking
 
 ```mermaid
 flowchart TD
+    A[Client Application] --> B[Spring Boot REST API]
+    B --> RL[Redis Rate Limiter]
+    RL -->|Allowed| C[JWT Authentication]
+    RL -->|Rejected| ERR[429 Too Many Requests]
 
-A[Client Application] --> B[Spring Boot REST API]
+    C --> D[Security Filter]
+    D --> E[Controller Layer]
+    E --> F[Service Layer]
 
-B --> C[JWT Authentication]
-C --> D[Security Filter]
+    F --> G[Business Logic]
+    G --> H{Idempotency Check}
 
-D --> E[Controller Layer]
-E --> F[Service Layer]
+    H -->|Duplicate| RESP[Return Cached Response]
+    H -->|New Request| I[Outbox Pattern]
 
-F --> G[Business Logic]
-G --> H[Idempotency Check]
-H --> I[Outbox Pattern]
+    I --> J[(Database)]
+    I --> K[Kafka Producer]
+    K --> L[Kafka Topic payment.created]
+    L --> M[Kafka Consumer]
+    M --> N[Downstream Processing]
 
-I --> J[(Database)]
-I --> K[Kafka Producer]
+    subgraph Resilience
+        R1[Retry Mechanism]
+        R2[Circuit Breaker]
+    end
 
-K --> L[Kafka Topic: payment.created]
+    F --> R1
+    F --> R2
 
-L --> M[Kafka Consumer]
-M --> N[Downstream Processing]
+    subgraph Cloud_Deployment
+        O[Docker]
+        P[Kubernetes]
+        Q[Azure App Service or AKS]
+    end
 
-subgraph Resilience
-R1[Retry Mechanism]
-R2[Circuit Breaker]
-end
+    B --> O
+    O --> P
+    P --> Q
 
-F --> R1
-F --> R2
+    subgraph DevOps
+        S[GitHub]
+        T[Azure DevOps Pipeline]
+    end
 
-subgraph Cloud Deployment
-O[Docker]
-P[Kubernetes]
-Q[Azure App Service]
-end
-
-B --> O
-O --> P
-P --> Q
-
-subgraph DevOps
-S[GitHub]
-T[Azure DevOps Pipeline]
-end
-
-S --> T
-T --> O
+    S --> T
+    T --> O
 ```
 
 ---
