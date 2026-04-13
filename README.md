@@ -34,56 +34,52 @@ This project reflects real-world enterprise backend architecture used in banking
 
 ```mermaid
 flowchart TD
+    A[Client Application] --> B[Spring Boot REST API]
+    B --> RL[Redis Rate Limiter]
+    RL -->|Allowed| C[JWT Authentication]
+    RL -->|Rejected| ERR[429 Too Many Requests]
 
-A[Client Application] --> B[Spring Boot REST API]
+    C --> D[Security Filter]
+    D --> E[Controller Layer]
+    E --> F[Service Layer]
 
-B --> RL[Redis Rate Limiter (Token Bucket)]
-RL -->|Allowed| C[JWT Authentication]
-RL -->|Rejected| ERR[429 Too Many Requests]
+    F --> G[Business Logic]
+    G --> H{Idempotency Check}
 
-C --> D[Security Filter]
-D --> E[Controller Layer]
-E --> F[Service Layer]
+    H -->|Duplicate| RESP[Return Cached Response]
+    H -->|New Request| I[Outbox Pattern]
 
-F --> G[Business Logic]
-G --> H[Idempotency Check]
+    I --> J[(Database)]
+    I --> K[Kafka Producer]
+    K --> L[Kafka Topic payment.created]
+    L --> M[Kafka Consumer]
+    M --> N[Downstream Processing]
 
-H -->|Duplicate| RESP[Return Cached Response]
-H -->|New Request| I[Outbox Pattern]
+    subgraph Resilience
+        R1[Retry Mechanism]
+        R2[Circuit Breaker]
+    end
 
-I --> J[(Database)]
-I --> K[Kafka Producer]
+    F --> R1
+    F --> R2
 
-K --> L[Kafka Topic: payment.created]
+    subgraph Cloud_Deployment
+        O[Docker]
+        P[Kubernetes]
+        Q[Azure App Service or AKS]
+    end
 
-L --> M[Kafka Consumer]
-M --> N[Downstream Processing]
+    B --> O
+    O --> P
+    P --> Q
 
-subgraph Resilience
-R1[Retry Mechanism]
-R2[Circuit Breaker]
-end
+    subgraph DevOps
+        S[GitHub]
+        T[Azure DevOps Pipeline]
+    end
 
-F --> R1
-F --> R2
-
-subgraph Cloud Deployment
-O[Docker]
-P[Kubernetes]
-Q[Azure App Service / AKS]
-end
-
-B --> O
-O --> P
-P --> Q
-
-subgraph DevOps
-S[GitHub]
-T[Azure DevOps Pipeline]
-end
-
-S --> T
-T --> O
+    S --> T
+    T --> O
 ```
 
 ---
