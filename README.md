@@ -37,7 +37,7 @@ flowchart TD
 
 A[Client Application] --> B[Spring Boot REST API]
 
-B --> RL[Redis Rate Limiter<br>(Token Bucket)]
+B --> RL[Redis Rate Limiter (Token Bucket)]
 RL -->|Allowed| C[JWT Authentication]
 RL -->|Rejected| ERR[429 Too Many Requests]
 
