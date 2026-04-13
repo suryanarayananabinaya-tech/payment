@@ -101,6 +101,10 @@ Resilience
 
 - Resilience4j (Circuit Breaker, Retry)
 
+Caching & Rate Limiting
+
+- Redis (Token Bucket Algorithm)
+
 Cloud
 
 - Microsoft Azure
@@ -171,6 +175,26 @@ Result:
 - Improved system stability
 - Better user experience
 
+6.Rate Limiting (Redis – Token Bucket Algorithm)
+
+Implemented Redis-based Token Bucket rate limiting to control API traffic and prevent abuse.
+
+How it works:
+- Each client is assigned a token bucket
+- Tokens are refilled at a fixed rate
+- Each API request consumes a token
+- Requests are rejected when tokens are exhausted
+
+Why Token Bucket?
+- Allows short bursts of traffic
+- Ensures steady request rate over time
+- Better suited for payment systems compared to fixed window limits
+
+Benefits:
+- Protects system from overload
+- Prevents abuse and DDoS-like traffic
+- Maintains consistent API performance under high load
+
 ---
 
 # Security Architecture
@@ -239,7 +263,7 @@ payment-service
 │   ├── dto               → Request/Response objects
 │   ├── exception         → Global exception handling
 │   ├── util              → Utility classes (JWT, helpers)
-│   ├── config            → Security, Kafka, Resilience configs
+│   ├── config            → Security, Kafka, Resilience configs, RateLimitConfigs 
 │
 │   ├── messaging         → Kafka producer & consumer
 │   ├── event             → Event models (PaymentCreatedEvent)
@@ -325,6 +349,7 @@ http://localhost:8080
 - Transactional Outbox Pattern
 - Idempotency handling
 - Fault tolerance (Resilience4j)
+- Rate limiting using Redis (Token Bucket Algorithm)
 - Docker & Kubernetes
 - Azure cloud deployment
 - CI/CD pipelines
