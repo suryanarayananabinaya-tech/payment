@@ -20,6 +20,8 @@ The project simulates a production-grade payment processing system and demonstra
 
 - Fault tolerance using Resilience4j (Circuit Breaker & Retry)
 
+- Redis-based Token Bucket rate limiting to control API traffic and prevent abuse
+
 - Containerization using Docker and orchestration via Kubernetes
 
 - CI/CD pipelines using Azure DevOps
@@ -32,52 +34,56 @@ This project reflects real-world enterprise backend architecture used in banking
 
 ```mermaid
 flowchart TD
-    A[Client Application] --> B[Spring Boot REST API]
-    B --> RL[Redis Rate Limiter]
-    RL -->|Allowed| C[JWT Authentication]
-    RL -->|Rejected| ERR[429 Too Many Requests]
 
-    C --> D[Security Filter]
-    D --> E[Controller Layer]
-    E --> F[Service Layer]
+A[Client Application] --> B[Spring Boot REST API]
 
-    F --> G[Business Logic]
-    G --> H{Idempotency Check}
+B --> RL[Redis Rate Limiter (Token Bucket)]
+RL -->|Allowed| C[JWT Authentication]
+RL -->|Rejected| ERR[429 Too Many Requests]
 
-    H -->|Duplicate| RESP[Return Cached Response]
-    H -->|New Request| I[Outbox Pattern]
+C --> D[Security Filter]
+D --> E[Controller Layer]
+E --> F[Service Layer]
 
-    I --> J[(Database)]
-    I --> K[Kafka Producer]
-    K --> L[Kafka Topic payment.created]
-    L --> M[Kafka Consumer]
-    M --> N[Downstream Processing]
+F --> G[Business Logic]
+G --> H[Idempotency Check]
 
-    subgraph Resilience
-        R1[Retry Mechanism]
-        R2[Circuit Breaker]
-    end
+H -->|Duplicate| RESP[Return Cached Response]
+H -->|New Request| I[Outbox Pattern]
 
-    F --> R1
-    F --> R2
+I --> J[(Database)]
+I --> K[Kafka Producer]
 
-    subgraph Cloud_Deployment
-        O[Docker]
-        P[Kubernetes]
-        Q[Azure App Service or AKS]
-    end
+K --> L[Kafka Topic: payment.created]
 
-    B --> O
-    O --> P
-    P --> Q
+L --> M[Kafka Consumer]
+M --> N[Downstream Processing]
 
-    subgraph DevOps
-        S[GitHub]
-        T[Azure DevOps Pipeline]
-    end
+subgraph Resilience
+R1[Retry Mechanism]
+R2[Circuit Breaker]
+end
 
-    S --> T
-    T --> O
+F --> R1
+F --> R2
+
+subgraph Cloud Deployment
+O[Docker]
+P[Kubernetes]
+Q[Azure App Service / AKS]
+end
+
+B --> O
+O --> P
+P --> Q
+
+subgraph DevOps
+S[GitHub]
+T[Azure DevOps Pipeline]
+end
+
+S --> T
+T --> O
 ```
 
 ---
@@ -100,6 +106,10 @@ Messaging
 Resilience
 
 - Resilience4j (Circuit Breaker, Retry)
+
+Caching & Rate Limiting
+
+- Redis (Token Bucket Algorithm)
 
 Cloud
 
@@ -171,6 +181,26 @@ Result:
 - Improved system stability
 - Better user experience
 
+6.Rate Limiting (Redis – Token Bucket Algorithm)
+
+Implemented Redis-based Token Bucket rate limiting to control API traffic and prevent abuse.
+
+How it works:
+- Each client is assigned a token bucket
+- Tokens are refilled at a fixed rate
+- Each API request consumes a token
+- Requests are rejected when tokens are exhausted
+
+Why Token Bucket?
+- Allows short bursts of traffic
+- Ensures steady request rate over time
+- Better suited for payment systems compared to fixed window limits
+
+Benefits:
+- Protects system from overload
+- Prevents abuse and DDoS-like traffic
+- Maintains consistent API performance under high load
+
 ---
 
 # Security Architecture
@@ -239,7 +269,7 @@ payment-service
 │   ├── dto               → Request/Response objects
 │   ├── exception         → Global exception handling
 │   ├── util              → Utility classes (JWT, helpers)
-│   ├── config            → Security, Kafka, Resilience configs
+│   ├── config            → Security, Kafka, Resilience configs, RateLimitConfigs 
 │
 │   ├── messaging         → Kafka producer & consumer
 │   ├── event             → Event models (PaymentCreatedEvent)
@@ -325,6 +355,7 @@ http://localhost:8080
 - Transactional Outbox Pattern
 - Idempotency handling
 - Fault tolerance (Resilience4j)
+- Rate limiting using Redis (Token Bucket Algorithm)
 - Docker & Kubernetes
 - Azure cloud deployment
 - CI/CD pipelines
