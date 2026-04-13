@@ -42,12 +42,12 @@ RL -->|Allowed| C[JWT Authentication]
 RL -->|Rejected| ERR[429 Too Many Requests]
 
 C --> D[Security Filter]
-
 D --> E[Controller Layer]
 E --> F[Service Layer]
 
 F --> G[Business Logic]
 G --> H[Idempotency Check]
+
 H -->|Duplicate| RESP[Return Cached Response]
 H -->|New Request| I[Outbox Pattern]
 
