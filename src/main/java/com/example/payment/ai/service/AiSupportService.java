@@ -28,38 +28,48 @@ public class AiSupportService {
         String traceId = UUID.randomUUID().toString();
         String sessionId = resolveSessionId(request.getSessionId());
 
-        log.info("AI query received [traceId={}, userId={}, sessionId={}]",
-                traceId, request.getUserId(), sessionId);
+        log.info("AI query received [traceId={}, userId={}, sessionId={}, mode={}]",
+                traceId, request.getUserId(), sessionId, request.getMode());
 
         try {
-            String mode = request.getMode();
-            AiWorkflowResult result;
-            if ("AGENT".equalsIgnoreCase(mode)) {
-                result = workflowEngine.executeAgentWorkflow(request, sessionId, traceId);
+            AiWorkflowResult result = executeByMode(request, sessionId, traceId);
+
+            if (!result.isSuccess()) {
+                log.warn("AI query completed with failure [traceId={}, queryType={}, reason={}]",
+                        traceId, result.getQueryType(), result.getFailureReason());
             } else {
-                result = workflowEngine.executeWorkflow(request, sessionId, traceId);
+                log.info("AI query completed successfully [traceId={}, queryType={}]",
+                        traceId, result.getQueryType());
             }
-            String answer = result.getAnswer();
+
             QueryType queryType = result.getQueryType();
 
-            log.info("AI query completed [traceId={}, queryType={}]", traceId, queryType);
-
             return AiQueryResponse.builder()
-                    .answer(answer)
-                    .sessionId(sessionId)
-                    .traceId(traceId)
+                    .answer(result.getAnswer())
+                    .sessionId(result.getSessionId())
+                    .traceId(result.getTraceId())
                     .queryType(queryType != null ? queryType.name() : "UNKNOWN")
-                    .sources(List.of())
+                    .sources(result.getSources() != null ? result.getSources() : List.of())
                     .timestamp(LocalDateTime.now())
                     .build();
 
         } catch (AiProcessingException e) {
-            log.error("AI processing failed [traceId={}]: {}", traceId, e.getMessage());
+            log.error("AI processing failed [traceId={}]: {}", traceId, e.getMessage(), e);
             throw e;
         } catch (Exception e) {
-            log.error("Error processing AI query [traceId={}]", traceId, e);
+            log.error("Unexpected error processing AI query [traceId={}]", traceId, e);
             throw new AiProcessingException("Failed to process AI query", e);
         }
+    }
+
+    private AiWorkflowResult executeByMode(AiQueryRequest request, String sessionId, String traceId) {
+        String mode = request.getMode();
+
+        if ("AGENT".equalsIgnoreCase(mode)) {
+            return workflowEngine.executeAgentWorkflow(request, sessionId, traceId);
+        }
+
+        return workflowEngine.executeWorkflow(request, sessionId, traceId);
     }
 
     private String resolveSessionId(String sessionId) {

@@ -72,6 +72,9 @@ public class AiWorkflowEngine {
             stepValidateInput(context);
             stepClassifyQuery(context);
             stepRetrieveContext(context);
+            context.setSystemPrompt(
+                    promptBuilder.buildSystemPrompt(context.getQueryType())
+            );
             stepBuildPrompt(context);
             stepRunLlm(context);
             stepValidateResponse(context);
@@ -183,7 +186,7 @@ public class AiWorkflowEngine {
         context.setCurrentStep(AiWorkflowStep.RUN_LLM);
 
         LlmResponse llmResponse = llmClient.complete(
-                promptBuilder.buildSystemPrompt(context.getQueryType()),
+                context.getSystemPrompt(),
                 context.getAssembledPrompt()
         );
 
