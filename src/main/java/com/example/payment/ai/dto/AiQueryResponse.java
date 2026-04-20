@@ -1,0 +1,4 @@
+package com.example.payment.ai.dto;
+
+public class AiQueryResponse {
+}
