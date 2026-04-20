@@ -1,4 +1,12 @@
 package com.example.payment.ai.tool;
 
-public class AgentTool {
+import com.example.payment.ai.model.ToolExecutionResult;
+
+public interface AgentTool {
+
+    String name();
+
+    String description();
+
+    ToolExecutionResult execute(String input);
 }

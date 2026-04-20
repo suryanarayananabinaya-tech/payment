@@ -1,4 +1,12 @@
 package com.example.payment.ai.exception;
 
-public class ToolExecutionException {
+public class ToolExecutionException extends RuntimeException {
+
+    public ToolExecutionException(String message) {
+        super(message);
+    }
+
+    public ToolExecutionException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

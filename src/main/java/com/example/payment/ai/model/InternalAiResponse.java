@@ -1,4 +1,18 @@
 package com.example.payment.ai.model;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class InternalAiResponse {
+
+    private String answer;
+    private String finishReason;
+    private int promptTokens;
+    private int completionTokens;
 }

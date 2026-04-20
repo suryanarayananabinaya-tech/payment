@@ -1,4 +1,8 @@
 package com.example.payment.ai.llm;
 
-public class LlmClient {
+import com.example.payment.ai.model.LlmResponse;
+
+public interface LlmClient {
+
+    LlmResponse complete(String systemPrompt, String userPrompt);
 }
