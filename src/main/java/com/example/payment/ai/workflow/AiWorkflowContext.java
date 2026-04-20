@@ -25,4 +25,5 @@ public class AiWorkflowContext {
     private String failureReason;
 
     private PaymentContextDto paymentContext;
+    private String systemPrompt;
 }

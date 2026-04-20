@@ -32,6 +32,27 @@ public class AgentExecutor {
         AgentAction action = parseAction(content);
         boolean isFinal = FinalAnswerTool.TOOL_NAME.equals(action.getToolName());
 
+        if (isFinal) {
+            state.setFinalAnswer(action.getToolInput());
+
+            AgentObservation observation = AgentObservation.builder()
+                    .toolName(action.getToolName())
+                    .output(action.getToolInput())
+                    .success(true)
+                    .build();
+
+            state.addObservation(observation);
+
+            log.debug("Step {} complete [tool={}, final={}]",
+                    state.getCurrentStep(), action.getToolName(), true);
+
+            return AgentStepResult.builder()
+                    .action(action)
+                    .observation(observation)
+                    .isFinal(true)
+                    .build();
+        }
+
         AgentTool tool = toolRegistry.get(action.getToolName());
         ToolExecutionResult result = tool.execute(action.getToolInput());
 
@@ -43,17 +64,13 @@ public class AgentExecutor {
 
         state.addObservation(observation);
 
-        if (isFinal) {
-            state.setFinalAnswer(action.getToolInput());
-        }
-
         log.debug("Step {} complete [tool={}, final={}]",
-                state.getCurrentStep(), action.getToolName(), isFinal);
+                state.getCurrentStep(), action.getToolName(), false);
 
         return AgentStepResult.builder()
                 .action(action)
                 .observation(observation)
-                .isFinal(isFinal)
+                .isFinal(false)
                 .build();
     }
 
@@ -67,7 +84,13 @@ public class AgentExecutor {
         sb.append("Always respond with a JSON object in this exact format:\n")
                 .append("{\"tool\": \"<tool_name>\", \"input\": \"<tool_input>\"}\n\n");
 
-        sb.append("User query: ").append(state.getQuery()).append("\n");
+        sb.append("Context:\n")
+                .append(state.getContextPrompt())
+                .append("\n\n");
+
+        sb.append("User query: ")
+                .append(state.getQuery())
+                .append("\n");
 
         if (!state.getHistory().isEmpty()) {
             sb.append("\nPrevious steps:\n");
@@ -84,14 +107,14 @@ public class AgentExecutor {
     private AgentAction parseAction(String content) {
         try {
             int start = content.indexOf('{');
-            int end   = content.lastIndexOf('}');
+            int end = content.lastIndexOf('}');
 
             if (start == -1 || end == -1 || end <= start) {
                 return defaultFinalAnswer(content);
             }
 
             JsonNode node = objectMapper.readTree(content.substring(start, end + 1));
-            String toolName  = node.path("tool").asText();
+            String toolName = node.path("tool").asText();
             String toolInput = node.path("input").asText();
 
             if (toolName.isBlank()) {

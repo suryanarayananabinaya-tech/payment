@@ -5,7 +5,6 @@ import com.example.payment.ai.agent.AgentOrchestrator;
 import com.example.payment.ai.classifier.QueryClassifier;
 import com.example.payment.ai.dto.AiQueryRequest;
 import com.example.payment.ai.dto.PromptInputDto;
-import com.example.payment.ai.exception.AiProcessingException;
 import com.example.payment.ai.llm.LlmClient;
 import com.example.payment.ai.mapper.LlmResponseMapper;
 import com.example.payment.ai.model.LlmResponse;
@@ -62,14 +61,12 @@ public class AiWorkflowEngine {
         this.agentOrchestrator = agentOrchestrator;
     }
 
+    // =========================
+    // NORMAL WORKFLOW
+    // =========================
     public AiWorkflowResult executeWorkflow(AiQueryRequest request, String sessionId, String traceId) {
-        AiWorkflowContext context = AiWorkflowContext.builder()
-                .request(request)
-                .sessionId(sessionId)
-                .traceId(traceId)
-                .currentStep(AiWorkflowStep.VALIDATE_INPUT)
-                .failed(false)
-                .build();
+
+        AiWorkflowContext context = initContext(request, sessionId, traceId);
 
         try {
             stepValidateInput(context);
@@ -79,113 +76,134 @@ public class AiWorkflowEngine {
             stepRunLlm(context);
             stepValidateResponse(context);
 
-            context.setCurrentStep(AiWorkflowStep.COMPLETE);
-            log.info("Workflow complete [traceId={}, queryType={}]", traceId, context.getQueryType());
-
-            return AiWorkflowResult.builder()
-                    .answer(context.getRawAnswer())
-                    .sessionId(sessionId)
-                    .traceId(traceId)
-                    .queryType(context.getQueryType())
-                    .sources(List.of())
-                    .success(true)
-                    .build();
+            return success(context);
 
         } catch (Exception e) {
-            log.error("Workflow failed at step {} [traceId={}]: {}",
-                    context.getCurrentStep(), traceId, e.getMessage());
-            return AiWorkflowResult.builder()
-                    .answer("We could not process your request. Please try again.")
-                    .sessionId(sessionId)
-                    .traceId(traceId)
-                    .queryType(context.getQueryType())
-                    .sources(List.of())
-                    .success(false)
-                    .failureReason(e.getMessage())
-                    .build();
+            return failure(context, traceId, e);
         }
     }
 
+    // =========================
+    // AGENT WORKFLOW
+    // =========================
     public AiWorkflowResult executeAgentWorkflow(AiQueryRequest request, String sessionId, String traceId) {
 
-        AiWorkflowContext context = AiWorkflowContext.builder()
+        AiWorkflowContext context = initContext(request, sessionId, traceId);
+
+        try {
+            stepValidateInput(context);
+            stepClassifyQuery(context);
+            stepRetrieveContext(context);
+            context.setSystemPrompt(
+                    promptBuilder.buildSystemPrompt(context.getQueryType())
+            );
+            stepBuildPrompt(context);
+            stepRunAgent(context);
+            stepValidateResponse(context);
+            return success(context);
+
+        } catch (Exception e) {
+            return failure(context, traceId, e);
+        }
+    }
+
+    // =========================
+    // COMMON HELPERS
+    // =========================
+    private AiWorkflowContext initContext(AiQueryRequest request, String sessionId, String traceId) {
+        return AiWorkflowContext.builder()
                 .request(request)
                 .sessionId(sessionId)
                 .traceId(traceId)
                 .currentStep(AiWorkflowStep.VALIDATE_INPUT)
                 .failed(false)
                 .build();
-
-        try {
-            stepValidateInput(context);
-            stepClassifyQuery(context);
-            stepRunAgent(context);
-            stepValidateResponse(context);
-            context.setCurrentStep(AiWorkflowStep.COMPLETE);
-
-            return AiWorkflowResult.builder()
-                    .answer(context.getRawAnswer())
-                    .sessionId(sessionId)
-                    .traceId(traceId)
-                    .queryType(context.getQueryType())
-                    .sources(List.of())
-                    .success(true)
-                    .build();
-
-        } catch (Exception e) {
-            log.error("Agent workflow failed at step {} [traceId={}]: {}",
-                    context.getCurrentStep(), traceId, e.getMessage());
-
-            return AiWorkflowResult.builder()
-                    .answer("We could not process your request. Please try again.")
-                    .sessionId(sessionId)
-                    .traceId(traceId)
-                    .queryType(context.getQueryType())
-                    .sources(List.of())
-                    .success(false)
-                    .failureReason(e.getMessage())
-                    .build();
-        }
     }
+
+    private AiWorkflowResult success(AiWorkflowContext context) {
+        context.setCurrentStep(AiWorkflowStep.COMPLETE);
+
+        log.info("Workflow complete [traceId={}, queryType={}]",
+                context.getTraceId(), context.getQueryType());
+
+        return AiWorkflowResult.builder()
+                .answer(context.getRawAnswer())
+                .sessionId(context.getSessionId())
+                .traceId(context.getTraceId())
+                .queryType(context.getQueryType())
+                .sources(List.of()) // future: populate RAG sources
+                .success(true)
+                .build();
+    }
+
+    private AiWorkflowResult failure(AiWorkflowContext context, String traceId, Exception e) {
+        log.error("Workflow failed at step {} [traceId={}]: {}",
+                context.getCurrentStep(), traceId, e.getMessage(), e);
+
+        return AiWorkflowResult.builder()
+                .answer("We could not process your request. Please try again.")
+                .sessionId(context.getSessionId())
+                .traceId(traceId)
+                .queryType(context.getQueryType())
+                .sources(List.of())
+                .success(false)
+                .failureReason(e.getMessage())
+                .build();
+    }
+
+    // =========================
+    // STEPS
+    // =========================
 
     private void stepValidateInput(AiWorkflowContext context) {
         context.setCurrentStep(AiWorkflowStep.VALIDATE_INPUT);
-        log.debug("Step VALIDATE_INPUT [traceId={}]", context.getTraceId());
         requestValidator.validate(context.getRequest());
         promptSafetyValidator.validate(context.getRequest().getQuery());
     }
 
     private void stepClassifyQuery(AiWorkflowContext context) {
         context.setCurrentStep(AiWorkflowStep.CLASSIFY_QUERY);
-        log.debug("Step CLASSIFY_QUERY [traceId={}]", context.getTraceId());
         context.setQueryType(queryClassifier.classify(context.getRequest().getQuery()));
     }
 
     private void stepRetrieveContext(AiWorkflowContext context) {
         context.setCurrentStep(AiWorkflowStep.RETRIEVE_CONTEXT);
-        log.debug("Step RETRIEVE_CONTEXT [traceId={}]", context.getTraceId());
         context.setPaymentContext(paymentContextRetriever.retrieve(context.getRequest().getUserId()));
         context.setKnowledgeContext(ragRetriever.retrieve(context.getRequest().getQuery()));
     }
 
     private void stepBuildPrompt(AiWorkflowContext context) {
         context.setCurrentStep(AiWorkflowStep.BUILD_PROMPT);
-        log.debug("Step BUILD_PROMPT [traceId={}]", context.getTraceId());
         context.setAssembledPrompt(
-                promptBuilder.buildSystemPrompt(context.getQueryType())
-                        + "\n"
-                        + promptBuilder.buildUserPrompt(toPromptInput(context))
+                promptBuilder.buildUserPrompt(toPromptInput(context))
         );
     }
 
     private void stepRunLlm(AiWorkflowContext context) {
         context.setCurrentStep(AiWorkflowStep.RUN_LLM);
-        log.debug("Step RUN_LLM [traceId={}]", context.getTraceId());
+
         LlmResponse llmResponse = llmClient.complete(
                 promptBuilder.buildSystemPrompt(context.getQueryType()),
                 context.getAssembledPrompt()
         );
-        context.setRawAnswer(llmResponseMapper.toInternal(llmResponse).getAnswer());
+
+        context.setRawAnswer(
+                llmResponseMapper.toInternal(llmResponse).getAnswer()
+        );
+    }
+
+    private void stepRunAgent(AiWorkflowContext context) {
+        context.setCurrentStep(AiWorkflowStep.RUN_AGENT);
+
+        AgentFinalResponse agentResponse = agentOrchestrator.run(context);
+
+        context.setRawAnswer(agentResponse.getAnswer());
+    }
+
+    private void stepValidateResponse(AiWorkflowContext context) {
+        context.setCurrentStep(AiWorkflowStep.VALIDATE_RESPONSE);
+        responseValidator.validate(context.getRawAnswer());
+        responseSafetyValidator.validate(context.getRawAnswer());
     }
 
     private PromptInputDto toPromptInput(AiWorkflowContext context) {
@@ -197,19 +215,5 @@ public class AiWorkflowEngine {
                 .paymentContext(context.getPaymentContext())
                 .knowledgeContext(context.getKnowledgeContext())
                 .build();
-    }
-
-    private void stepRunAgent(AiWorkflowContext context) {
-        context.setCurrentStep(AiWorkflowStep.RUN_AGENT);
-        log.debug("Step RUN_AGENT [traceId={}]", context.getTraceId());
-        AgentFinalResponse agentResponse = agentOrchestrator.run(context);
-        context.setRawAnswer(agentResponse.getAnswer());
-    }
-
-    private void stepValidateResponse(AiWorkflowContext context) {
-        context.setCurrentStep(AiWorkflowStep.VALIDATE_RESPONSE);
-        log.debug("Step VALIDATE_RESPONSE [traceId={}]", context.getTraceId());
-        responseValidator.validate(context.getRawAnswer());
-        responseSafetyValidator.validate(context.getRawAnswer());
     }
 }

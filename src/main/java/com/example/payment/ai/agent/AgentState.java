@@ -16,6 +16,7 @@ public class AgentState {
     private List<AgentObservation> history;
     private int currentStep;
     private String finalAnswer;
+    private String contextPrompt;
 
     public void addObservation(AgentObservation observation) {
         history.add(observation);

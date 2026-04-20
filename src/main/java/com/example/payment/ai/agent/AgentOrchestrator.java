@@ -21,7 +21,8 @@ public class AgentOrchestrator {
                 .query(context.getRequest().getQuery())
                 .userId(context.getRequest().getUserId())
                 .sessionId(context.getSessionId())
-                .systemPrompt(context.getAssembledPrompt())
+                .systemPrompt(context.getSystemPrompt())
+                .contextPrompt(context.getAssembledPrompt())
                 .history(new ArrayList<>())
                 .currentStep(0)
                 .build();
