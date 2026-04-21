@@ -1,4 +1,5 @@
-# Payment Microservice – Cloud Native Spring Boot Application
+# Payment Microservice – Cloud Native Spring Boot Application with AI support
+# Event-Driven Architecture with Kafka, Redis, and RAG-based AI Support (Agent + Workflow)
 
 Java | Spring Boot | Kafka | REST API | JWT Security | Resilience4j | Azure | Kubernetes | Docker | CI/CD | Design Patterns | AI / RAG / Agent / LLM
 
