@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.stereotype.Service;
 
@@ -46,6 +47,9 @@ public class PaymentService {
     private final OutboxEventRepository outboxEventRepository;
 
     private final ObjectMapper objectMapper;
+
+    @Value("${payment.kafka.topic.created}")
+    private String paymentCreatedTopic;
 
     public PaymentService(PaymentRepository paymentRepository,
                           UserRepository userRepository,
@@ -139,7 +143,7 @@ public class PaymentService {
                 .eventId(event.getEventId())
                 .aggregateType("PAYMENT")
                 .aggregateId(savedPayment.getTransactionId())
-                .topic("payment.created")
+                .topic(paymentCreatedTopic)
                 .payload(objectMapper.writeValueAsString(event))
                 .status("NEW")
                 .build();

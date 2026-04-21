@@ -26,9 +26,6 @@ class PaymentEventConsumerTest {
     @Mock
     private ProcessedEventRepository processedEventRepository;
 
-    @Mock
-    private Acknowledgment acknowledgment;
-
     @InjectMocks
     private PaymentEventConsumer paymentEventConsumer;
 
@@ -48,15 +45,13 @@ class PaymentEventConsumerTest {
 
         when(processedEventRepository.existsById("TXN-123")).thenReturn(false);
 
-        paymentEventConsumer.consumePaymentCreatedEvent(record, acknowledgment);
+        paymentEventConsumer.consumePaymentCreatedEvent(record);
 
         verify(processedEventRepository).existsById("TXN-123");
 
         ArgumentCaptor<ProcessedEvent> captor = ArgumentCaptor.forClass(ProcessedEvent.class);
         verify(processedEventRepository).save(captor.capture());
         assertEquals("TXN-123", captor.getValue().getTransactionId());
-
-        verify(acknowledgment).acknowledge();
     }
 
     @Test
@@ -64,11 +59,10 @@ class PaymentEventConsumerTest {
         ConsumerRecord<String, PaymentCreatedEvent> record =
                 new ConsumerRecord<>("payment.created", 0, 0L, "key1", null);
 
-        paymentEventConsumer.consumePaymentCreatedEvent(record, acknowledgment);
+        paymentEventConsumer.consumePaymentCreatedEvent(record);
 
         verify(processedEventRepository, never()).existsById(anyString());
         verify(processedEventRepository, never()).save(any());
-        verify(acknowledgment).acknowledge();
     }
 
     @Test
@@ -78,11 +72,10 @@ class PaymentEventConsumerTest {
         ConsumerRecord<String, PaymentCreatedEvent> record =
                 new ConsumerRecord<>("payment.created", 0, 0L, "key1", event);
 
-        paymentEventConsumer.consumePaymentCreatedEvent(record, acknowledgment);
+        paymentEventConsumer.consumePaymentCreatedEvent(record);
 
         verify(processedEventRepository, never()).existsById(anyString());
         verify(processedEventRepository, never()).save(any());
-        verify(acknowledgment).acknowledge();
     }
 
     @Test
@@ -92,11 +85,10 @@ class PaymentEventConsumerTest {
 
         when(processedEventRepository.existsById("TXN-123")).thenReturn(true);
 
-        paymentEventConsumer.consumePaymentCreatedEvent(record, acknowledgment);
+        paymentEventConsumer.consumePaymentCreatedEvent(record);
 
         verify(processedEventRepository).existsById("TXN-123");
         verify(processedEventRepository, never()).save(any());
-        verify(acknowledgment).acknowledge();
     }
 
     @Test
@@ -108,11 +100,10 @@ class PaymentEventConsumerTest {
         doThrow(new DataIntegrityViolationException("duplicate"))
                 .when(processedEventRepository).save(any(ProcessedEvent.class));
 
-        paymentEventConsumer.consumePaymentCreatedEvent(record, acknowledgment);
+        paymentEventConsumer.consumePaymentCreatedEvent(record);
 
         verify(processedEventRepository).existsById("TXN-123");
         verify(processedEventRepository).save(any(ProcessedEvent.class));
-        verify(acknowledgment).acknowledge();
     }
 
     @Test
@@ -125,10 +116,9 @@ class PaymentEventConsumerTest {
 
         org.junit.jupiter.api.Assertions.assertThrows(
                 RuntimeException.class,
-                () -> paymentEventConsumer.consumePaymentCreatedEvent(record, acknowledgment)
+                () -> paymentEventConsumer.consumePaymentCreatedEvent(record)
         );
 
-        verify(acknowledgment, never()).acknowledge();
     }
 
     @Test
@@ -141,9 +131,8 @@ class PaymentEventConsumerTest {
 
         when(processedEventRepository.existsById("TXN-123")).thenReturn(false);
 
-        paymentEventConsumer.consumePaymentCreatedEvent(record, acknowledgment);
+        paymentEventConsumer.consumePaymentCreatedEvent(record);
 
         verify(processedEventRepository).save(any(ProcessedEvent.class));
-        verify(acknowledgment).acknowledge();
     }
 }

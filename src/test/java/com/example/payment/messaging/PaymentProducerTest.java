@@ -6,12 +6,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.MDC;
+import org.springframework.core.env.Environment;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -27,22 +28,31 @@ class PaymentEventProducerTest {
     @Mock
     private KafkaTemplate<String, PaymentCreatedEvent> kafkaTemplate;
 
-    @InjectMocks
-    private PaymentEventProducer paymentEventProducer;
+    @Mock
+    private Environment environment;
 
+    private PaymentEventProducer paymentEventProducer;
     private PaymentCreatedEvent event;
 
     @BeforeEach
     void setup() {
+        paymentEventProducer = new PaymentEventProducer(kafkaTemplate, environment);
+
+        ReflectionTestUtils.setField(paymentEventProducer, "paymentCreatedTopic", "payment.created");
+
         event = new PaymentCreatedEvent();
         event.setTransactionId("TXN-123");
         event.setAmount(BigDecimal.valueOf(100));
+
         MDC.clear();
     }
 
     @Test
     void publishEvent() {
-        CompletableFuture<SendResult> future =
+        when(environment.getProperty("spring.kafka.bootstrap-servers"))
+                .thenReturn("payment-kafka-dev.servicebus.windows.net:9093");
+
+        CompletableFuture<SendResult<String, PaymentCreatedEvent>> future =
                 CompletableFuture.completedFuture(mock(SendResult.class));
 
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(future);
@@ -54,9 +64,12 @@ class PaymentEventProducerTest {
 
     @Test
     void publishEventWithTraceId() {
+        when(environment.getProperty("spring.kafka.bootstrap-servers"))
+                .thenReturn("payment-kafka-dev.servicebus.windows.net:9093");
+
         MDC.put("traceId", "trace-123");
 
-        CompletableFuture<SendResult> future =
+        CompletableFuture<SendResult<String, PaymentCreatedEvent>> future =
                 CompletableFuture.completedFuture(mock(SendResult.class));
 
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(future);
@@ -82,7 +95,10 @@ class PaymentEventProducerTest {
 
     @Test
     void publishEventWithoutTraceId() {
-        CompletableFuture<SendResult> future =
+        when(environment.getProperty("spring.kafka.bootstrap-servers"))
+                .thenReturn("payment-kafka-dev.servicebus.windows.net:9093");
+
+        CompletableFuture<SendResult<String, PaymentCreatedEvent>> future =
                 CompletableFuture.completedFuture(mock(SendResult.class));
 
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(future);
@@ -96,6 +112,7 @@ class PaymentEventProducerTest {
 
         ProducerRecord<String, PaymentCreatedEvent> record = captor.getValue();
 
+        assertEquals("payment.created", record.topic());
         assertNull(record.headers().lastHeader("traceId"));
     }
 
@@ -119,6 +136,9 @@ class PaymentEventProducerTest {
 
     @Test
     void sendFailure() {
+        when(environment.getProperty("spring.kafka.bootstrap-servers"))
+                .thenReturn("payment-kafka-dev.servicebus.windows.net:9093");
+
         CompletableFuture<SendResult<String, PaymentCreatedEvent>> future =
                 CompletableFuture.failedFuture(new RuntimeException("Kafka error"));
 
