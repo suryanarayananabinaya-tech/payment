@@ -1,6 +1,6 @@
 # Payment Microservice – Cloud Native Spring Boot Application
 
-Java | Spring Boot | Kafka | REST API | JWT Security | Resilience4j | Azure | Kubernetes | Docker | CI/CD | Design Patterns
+Java | Spring Boot | Kafka | REST API | JWT Security | Resilience4j | Azure | Kubernetes | Docker | CI/CD | Design Patterns | AI / RAG / Agent
 
 ---
 
@@ -97,6 +97,14 @@ Backend
 - Spring Web
 - Spring Data JPA
 - Spring Security
+
+AI / LLM
+
+- OpenAI Chat Completions API (`gpt-4o`)
+- OpenAI Embeddings API
+- RAG (Retrieval-Augmented Generation)
+- ReAct Agent Loop (Think → Act → Observe)
+- Cosine Similarity Vector Search
 
 Messaging
 
@@ -276,6 +284,24 @@ payment-service
 │   ├── outbox            → Transactional Outbox implementation
 │   ├── idempotency       → Idempotency handling logic
 │
+│   ├── ai                → AI Support Module (RAG + Agent)
+│   │   ├── agent         → ReAct agent loop (orchestrator, executor, registry, state)
+│   │   ├── classifier    → Keyword-based query classifier
+│   │   ├── config        → LlmProperties, AiConfig (RestClient bean)
+│   │   ├── controller    → AiSupportController (two endpoints)
+│   │   ├── dto           → AiQueryRequest/Response, PaymentContextDto, etc.
+│   │   ├── exception     → ValidationException, AiProcessingException, etc.
+│   │   ├── llm           → LlmClient interface, OpenAiLlmClient, parser, mapper
+│   │   ├── mapper        → PaymentContextMapper, LlmResponseMapper
+│   │   ├── model         → QueryType, LlmResponse, InternalAiResponse, RagChunk, etc.
+│   │   ├── prompt        → SystemPrompts, PromptTemplates, PromptBuilder
+│   │   ├── rag           → DocumentChunker, EmbeddingService, VectorStoreService, RagRetriever
+│   │   ├── retriever     → PaymentContextRetriever
+│   │   ├── service       → AiSupportService
+│   │   ├── tool          → AgentTool interface, PaymentContextTool, KnowledgeRagTool, FinalAnswerTool
+│   │   ├── validator     → AiRequestValidator, PromptSafetyValidator, AiResponseValidator, ResponseSafetyValidator
+│   │   └── workflow      → AiWorkflowEngine, AiWorkflowContext, AiWorkflowStep, AiWorkflowResult
+│
 │   ├── strategy          → Strategy pattern
 │   ├── factory           → Factory pattern
 │   ├── decorator         → Decorator pattern
@@ -359,6 +385,11 @@ http://localhost:8080
 - Docker & Kubernetes
 - Azure cloud deployment
 - CI/CD pipelines
+- LLM integration (OpenAI Chat Completions + Embeddings APIs)
+- RAG pipeline design (chunking, embedding, vector search, retrieval)
+- ReAct agent loop with tool registry and dynamic tool discovery
+- Prompt engineering (system prompts per query type, safety validators, PII detection)
+- AI safety & guardrails (prompt injection detection, response sanitization)
 
 ---
 
@@ -412,7 +443,305 @@ Testing
 - Contract testing
 - Integration testing with Testcontainers
 - Chaos engineering
-- 
+
+AI Enhancements
+
+- Swap in-memory vector store for pgvector / Pinecone / Weaviate
+- Add conversation memory (session-scoped message history)
+- Stream LLM responses via Server-Sent Events (SSE)
+- Add feedback loop (thumbs up/down → fine-tuning data)
+- Multi-turn agent sessions with persistent AgentState
+- Evaluation harness for RAG retrieval quality (MRR, NDCG)
+
+---
+
+---
+
+# AI Support Module
+
+The payment service includes a production-grade AI customer support module (`com.example.payment.ai`) that answers user questions about their payments using two distinct execution modes: a direct **WORKFLOW** mode and a reasoning **AGENT** mode.
+
+---
+
+## AI Architecture Overview
+
+```mermaid
+flowchart TD
+    Client([Client]) -->|POST /api/v1/ai/support| WF[WORKFLOW Mode]
+    Client -->|POST /api/v1/ai/support/agent| AG[AGENT Mode]
+
+    subgraph WORKFLOW["WORKFLOW Mode (RAG + Direct LLM)"]
+        WF --> V1[Validate Input]
+        V1 --> C1[Classify Query]
+        C1 --> RC[Retrieve Context\nPayment DB + RAG]
+        RC --> BP[Build Prompt]
+        BP --> LLM[Call LLM\nOpenAI Chat API]
+        LLM --> VR[Validate Response]
+        VR --> RESP1[AiQueryResponse]
+    end
+
+    subgraph AGENT["AGENT Mode (ReAct Loop)"]
+        AG --> V2[Validate Input]
+        V2 --> C2[Classify Query]
+        C2 --> ORC[AgentOrchestrator\nmax 5 steps]
+        ORC --> EX[AgentExecutor\nThink → Act → Observe]
+        EX --> TR[AgentToolRegistry]
+        TR --> T1[PaymentContextTool]
+        TR --> T2[KnowledgeRagTool]
+        TR --> T3[FinalAnswerTool]
+        EX --> VR2[Validate Response]
+        VR2 --> RESP2[AiQueryResponse]
+    end
+```
+
+---
+
+## Two Execution Modes
+
+### WORKFLOW Mode
+A deterministic pipeline that always runs the same steps in order:
+
+| Step | Component | Description |
+|------|-----------|-------------|
+| 1 | `AiRequestValidator` | Null checks, max 1 000 chars, userId required |
+| 2 | `PromptSafetyValidator` | Blocks prompt injection ("ignore previous instructions", jailbreak, DAN, etc.) |
+| 3 | `QueryClassifier` | Maps query to `QueryType` via keyword matching |
+| 4 | `PaymentContextRetriever` | Fetches last 10 transactions from the DB for the user |
+| 5 | `RagRetriever` | Embeds query → cosine similarity search → top-5 knowledge chunks |
+| 6 | `PromptBuilder` | Assembles system prompt (per QueryType) + user prompt with context sections |
+| 7 | `OpenAiLlmClient` | POSTs to OpenAI `/chat/completions`; mock mode returns a canned response |
+| 8 | `LlmResponseMapper` | Maps raw JSON to `InternalAiResponse` |
+| 9 | `AiResponseValidator` + `ResponseSafetyValidator` | Max 5 000 chars, no PII leak, no system-prompt leakage |
+
+### AGENT Mode (ReAct)
+A reasoning loop where the LLM decides which tool to call next:
+
+```
+AgentOrchestrator (max 5 steps)
+  └── AgentExecutor.step()
+        ├── Build step prompt  (tool descriptions + history + query)
+        ├── Call LLM  → JSON {"tool": "...", "input": "..."}
+        ├── AgentToolRegistry.get(toolName).execute(input)
+        └── Record AgentObservation in AgentState.history
+```
+
+The loop ends when the LLM calls `final_answer` or the step limit is reached.
+
+---
+
+## RAG Pipeline
+
+```
+Raw Document
+   └── DocumentChunker  (chunk size 500, overlap 50, sentence-boundary aware)
+         └── EmbeddingService  (POST /embeddings → OpenAI | mock: zero vector)
+               └── VectorStoreService  (ConcurrentHashMap, cosine similarity)
+                     └── RagRetriever  (topK=5, minScore=0.7 → KnowledgeContextDto)
+```
+
+- **VectorStoreService** is swap-ready — replace the `ConcurrentHashMap` with pgvector, Pinecone, or Weaviate without changing any caller.
+- **Cosine similarity** is computed in-process; production deployments should offload to the vector DB.
+
+---
+
+## LLM Layer
+
+| Class | Responsibility |
+|-------|---------------|
+| `LlmClient` | Interface — `LlmResponse complete(systemPrompt, userPrompt)` |
+| `OpenAiLlmClient` | Real implementation via `RestClient`; mock path returns UUID + canned text |
+| `LlmResponseParser` | Parses raw JSON with Jackson into `LlmResponse` (choices, usage, finish reason) |
+| `LlmResponseMapper` | Maps `LlmResponse` → `InternalAiResponse` (answer, tokens, finish reason) |
+| `LlmProperties` | `@ConfigurationProperties(prefix="llm")` — apiKey, model, temperature, maxTokens, mockEnabled |
+
+**Mock mode** (`llm.mock-enabled=true`) lets the entire pipeline run — including RAG, agent loop, and validators — without an API key. Flip to `false` and set `LLM_API_KEY` for real calls.
+
+---
+
+## Agent Tools
+
+| Tool | `name()` | Description |
+|------|----------|-------------|
+| `PaymentContextTool` | `payment_context` | Fetches last 10 user transactions; returns JSON |
+| `KnowledgeRagTool` | `knowledge_rag` | Runs RAG retrieval; returns joined excerpts |
+| `FinalAnswerTool` | `final_answer` | Passes input straight through — signals loop completion |
+
+New tools are auto-discovered: implement `AgentTool`, annotate with `@Component`, and `AgentToolRegistry` picks it up via Spring's `List<AgentTool>` injection.
+
+---
+
+## Query Classification
+
+`QueryClassifier` maps free-text queries to one of seven `QueryType` values using keyword matching (no LLM call required):
+
+| QueryType | Example keywords |
+|-----------|-----------------|
+| `PAYMENT_INQUIRY` | payment, transaction, charge, invoice |
+| `PAYMENT_FAILURE` | failed, declined, error, rejected |
+| `REFUND_REQUEST` | refund, chargeback, dispute, money back |
+| `ACCOUNT_INQUIRY` | account, profile, balance, statement |
+| `SUPPORT_REQUEST` | help, support, issue, problem, complaint |
+| `GENERAL_FAQ` | how, what, why, when, policy |
+| `UNKNOWN` | fallback |
+
+Each `QueryType` maps to a dedicated system prompt constant in `SystemPrompts`.
+
+---
+
+## Safety & Validation
+
+| Validator | What it checks |
+|-----------|---------------|
+| `AiRequestValidator` | Not null, query ≤ 1 000 chars, userId not blank |
+| `PromptSafetyValidator` | 9 injection patterns (jailbreak, DAN mode, "act as", etc.) |
+| `AiResponseValidator` | Response not blank, ≤ 5 000 chars |
+| `ResponseSafetyValidator` | No system-prompt leakage phrases; PII regex for card numbers, IBAN, email |
+
+---
+
+## AI API Endpoints
+
+Both endpoints require `Authorization: Bearer <JWT_TOKEN>` and `ROLE_USER`.
+
+### WORKFLOW Mode
+```
+POST /api/v1/ai/support
+Content-Type: application/json
+
+{
+  "query": "What is the status of my last payment?",
+  "userId": "user123",
+  "sessionId": "optional-session-id",
+  "mode": "WORKFLOW"
+}
+```
+
+### AGENT Mode
+```
+POST /api/v1/ai/support/agent
+Content-Type: application/json
+
+{
+  "query": "Why was my payment declined and how do I fix it?",
+  "userId": "user123",
+  "mode": "AGENT"
+}
+```
+
+### Response (both modes)
+```json
+{
+  "answer": "Your last payment of $250.00 was processed successfully on ...",
+  "sessionId": "sess-abc123",
+  "traceId": "uuid-trace-id",
+  "queryType": "PAYMENT_INQUIRY",
+  "sources": ["knowledge-article-1.pdf"],
+  "timestamp": "2026-04-20T10:30:00Z"
+}
+```
+
+---
+
+## AI Configuration
+
+**`application-local.properties`** (development — mock LLM, no API key needed):
+```properties
+llm.mock-enabled=true
+llm.model=gpt-4o
+llm.base-url=https://api.openai.com/v1
+llm.temperature=0.7
+llm.max-tokens=1024
+llm.timeout-seconds=30
+llm.api-key=not-required-in-mock-mode
+```
+
+**`application-dev.properties`** (real LLM calls):
+```properties
+llm.mock-enabled=${LLM_MOCK_ENABLED:false}
+llm.api-key=${LLM_API_KEY}
+llm.model=${LLM_MODEL:gpt-4o}
+llm.base-url=${LLM_BASE_URL:https://api.openai.com/v1}
+llm.temperature=${LLM_TEMPERATURE:0.7}
+llm.max-tokens=${LLM_MAX_TOKENS:1024}
+llm.timeout-seconds=${LLM_TIMEOUT_SECONDS:30}
+```
+
+---
+
+## AI Module Package Structure
+
+```plaintext
+com.example.payment.ai
+├── agent
+│   ├── AgentExecutor.java          ← Think → Act → Observe loop step
+│   ├── AgentFinalResponse.java
+│   ├── AgentObservation.java
+│   ├── AgentOrchestrator.java      ← Max-5-step ReAct loop
+│   ├── AgentState.java             ← Mutable loop state (history, step count)
+│   ├── AgentStepResult.java
+│   └── AgentToolRegistry.java      ← Auto-discovers all AgentTool beans
+├── classifier
+│   └── QueryClassifier.java
+├── config
+│   ├── AiConfig.java               ← RestClient bean with Bearer auth
+│   └── LlmProperties.java
+├── controller
+│   └── AiSupportController.java    ← /api/v1/ai/support  &  /agent
+├── dto
+│   ├── AiQueryRequest.java
+│   ├── AiQueryResponse.java
+│   ├── KnowledgeContextDto.java
+│   ├── PaymentContextDto.java
+│   └── PromptInputDto.java
+├── exception
+│   ├── AiProcessingException.java
+│   ├── RagRetrievalException.java
+│   ├── ToolExecutionException.java
+│   └── ValidationException.java
+├── llm
+│   ├── LlmClient.java              ← Interface
+│   ├── LlmResponseMapper.java
+│   ├── LlmResponseParser.java
+│   └── OpenAiLlmClient.java        ← Real + mock implementation
+├── mapper
+│   └── PaymentContextMapper.java
+├── model
+│   ├── AgentAction.java
+│   ├── InternalAiResponse.java
+│   ├── LlmResponse.java
+│   ├── QueryType.java
+│   ├── RagChunk.java
+│   └── RetrievedChunk.java
+├── prompt
+│   ├── PromptBuilder.java
+│   ├── PromptTemplates.java
+│   └── SystemPrompts.java
+├── rag
+│   ├── DocumentChunker.java
+│   ├── EmbeddingService.java
+│   ├── RagRetriever.java
+│   └── VectorStoreService.java     ← In-memory; swap-ready for pgvector
+├── retriever
+│   └── PaymentContextRetriever.java
+├── service
+│   └── AiSupportService.java
+├── tool
+│   ├── AgentTool.java              ← Interface
+│   ├── FinalAnswerTool.java
+│   ├── KnowledgeRagTool.java
+│   └── PaymentContextTool.java
+├── validator
+│   ├── AiRequestValidator.java
+│   ├── AiResponseValidator.java
+│   ├── PromptSafetyValidator.java
+│   └── ResponseSafetyValidator.java
+└── workflow
+    ├── AiWorkflowContext.java
+    ├── AiWorkflowEngine.java       ← Orchestrates both modes
+    ├── AiWorkflowResult.java
+    └── AiWorkflowStep.java
+```
+
 ---
 
 # Author
