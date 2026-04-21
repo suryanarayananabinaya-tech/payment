@@ -6,7 +6,4 @@ public class ToolExecutionException extends RuntimeException {
         super(message);
     }
 
-    public ToolExecutionException(String message, Throwable cause) {
-        super(message, cause);
-    }
 }
