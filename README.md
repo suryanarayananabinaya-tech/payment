@@ -1,6 +1,6 @@
 # Payment Microservice – Cloud Native Spring Boot Application
 
-Java | Spring Boot | Kafka | REST API | JWT Security | Resilience4j | Azure | Kubernetes | Docker | CI/CD | Design Patterns | AI / RAG / Agent
+Java | Spring Boot | Kafka | REST API | JWT Security | Resilience4j | Azure | Kubernetes | Docker | CI/CD | Design Patterns | AI / RAG / Agent / LLM
 
 ---
 
@@ -26,7 +26,9 @@ The project simulates a production-grade payment processing system and demonstra
 
 - CI/CD pipelines using Azure DevOps
 
-This project reflects real-world enterprise backend architecture used in banking and fintech systems.
+- **AI-powered customer support** using RAG (Retrieval-Augmented Generation) and a ReAct-style LLM agent loop — integrated directly into the payment service to answer user queries about transactions, failures, and refunds using OpenAI GPT-4o
+
+This project reflects real-world enterprise backend architecture used in banking and fintech systems, extended with a practical AI support layer that combines vector search, prompt engineering, safety guardrails, and autonomous tool-calling agents.
 
 ---
 
@@ -37,7 +39,7 @@ flowchart TD
 
 A[Client Application] --> B[Spring Boot REST API]
 
-B --> RL[Redis Rate Limiter (Token Bucket)]
+B --> RL["Redis Rate Limiter (Token Bucket)"]
 RL -->|Allowed| C[JWT Authentication]
 RL -->|Rejected| ERR[429 Too Many Requests]
 
@@ -54,23 +56,23 @@ H -->|New Request| I[Outbox Pattern]
 I --> J[(Database)]
 I --> K[Kafka Producer]
 
-K --> L[Kafka Topic: payment.created]
+K --> L["Kafka Topic: payment.created"]
 
 L --> M[Kafka Consumer]
 M --> N[Downstream Processing]
 
 subgraph Resilience
-R1[Retry Mechanism]
-R2[Circuit Breaker]
+  R1[Retry Mechanism]
+  R2[Circuit Breaker]
 end
 
 F --> R1
 F --> R2
 
-subgraph Cloud Deployment
-O[Docker]
-P[Kubernetes]
-Q[Azure App Service / AKS]
+subgraph Cloud["Cloud Deployment"]
+  O[Docker]
+  P[Kubernetes]
+  Q["Azure App Service / AKS"]
 end
 
 B --> O
@@ -78,8 +80,8 @@ O --> P
 P --> Q
 
 subgraph DevOps
-S[GitHub]
-T[Azure DevOps Pipeline]
+  S[GitHub]
+  T[Azure DevOps Pipeline]
 end
 
 S --> T
