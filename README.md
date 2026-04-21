@@ -38,19 +38,17 @@ This project reflects real-world enterprise backend architecture used in banking
 ```mermaid
 flowchart TD
 
-    %% ================= CLIENT =================
-    A[Client / Frontend] --> B[Spring Boot Payment Service]
+    A[Client or Frontend] --> B[Spring Boot Payment Service]
 
-    %% ================= CORE PAYMENT FLOW =================
-    subgraph CORE["Core Payment Processing"]
-        B --> RL["Redis Rate Limiter<br/>Token Bucket"]
-        RL -->|Allowed| AUTH["JWT Authentication"]
+    subgraph CORE[Core Payment Processing]
+        B --> RL[Redis Rate Limiter]
+        RL -->|Allowed| AUTH[JWT Authentication]
         RL -->|Rejected| ERR[429 Too Many Requests]
 
         AUTH --> CTRL[REST Controllers]
         CTRL --> SVC[Service Layer]
 
-        SVC --> IDEMP[Idempotency Check]
+        SVC --> IDEMP{Idempotency Check}
         IDEMP -->|Duplicate| CACHE[Return Cached Response]
         IDEMP -->|New| TXN[Process Payment]
 
@@ -58,20 +56,18 @@ flowchart TD
         TXN --> OUTBOX[Transactional Outbox]
 
         OUTBOX --> KP[Kafka Producer]
-        KP --> TOPIC["Kafka Topic: payment.created"]
+        KP --> TOPIC[payment.created Topic]
 
         TOPIC --> KC[Kafka Consumer]
-        KC --> DOWNSTREAM[Notification / Audit Services]
+        KC --> DOWNSTREAM[Notification and Audit Services]
 
-        SVC --> CB[Resilience4j Circuit Breaker]
-        SVC --> RT[Resilience4j Retry]
+        SVC --> CB[Circuit Breaker]
+        SVC --> RT[Retry]
     end
 
-    %% ================= AI ENTRY =================
-    B --> AICTRL["AI Support Controller<br/>/ai/support & /ai/support/agent"]
+    B --> AICTRL[AI Support Controller]
 
-    %% ================= WORKFLOW MODE =================
-    subgraph WF["AI WORKFLOW Mode (Deterministic RAG Pipeline)"]
+    subgraph WF[AI Workflow Mode]
         AICTRL --> V1[Validate Request]
         V1 --> SAFE1[Prompt Safety Check]
         SAFE1 --> QC1[Query Classification]
@@ -86,19 +82,18 @@ flowchart TD
         PCR --> PB[Prompt Builder]
         RAG --> PB
 
-        PB --> LLM1[LLM Call (OpenAI)]
+        PB --> LLM1[LLM Call]
         LLM1 --> RV1[Response Validation]
         RV1 --> RESP1[AI Response]
     end
 
-    %% ================= AGENT MODE =================
-    subgraph AG["AI AGENT Mode (ReAct Loop)"]
+    subgraph AG[AI Agent Mode]
         AICTRL --> V2[Validate Request]
         V2 --> SAFE2[Prompt Safety Check]
         SAFE2 --> QC2[Query Classification]
 
         QC2 --> ORCH[Agent Orchestrator]
-        ORCH --> EXEC[Agent Executor<br/>Think → Act → Observe]
+        ORCH --> EXEC[Agent Executor]
 
         EXEC --> TOOLREG[Tool Registry]
 
@@ -110,22 +105,23 @@ flowchart TD
         T2 --> VS
 
         TOOLREG --> T3[Final Answer Tool]
-
         T3 --> RV2[Response Validation]
         RV2 --> RESP2[AI Response]
     end
 
-    %% ================= DEPLOYMENT =================
-    subgraph CLOUD["Cloud & Deployment"]
+    subgraph CLOUD[Cloud and Deployment]
         GIT[GitHub]
-        CI[Azure DevOps CI/CD]
+        CI[Azure DevOps CI CD]
         DOCKER[Docker]
-        K8S[Kubernetes / AKS]
-        APP[Azure App Service / AKS]
+        K8S[Kubernetes or AKS]
+        APP[Azure App Service or AKS]
         MON[Application Insights]
     end
 
-    GIT --> CI --> DOCKER --> K8S --> APP
+    GIT --> CI
+    CI --> DOCKER
+    DOCKER --> K8S
+    K8S --> APP
     B --> MON
 ```
 
