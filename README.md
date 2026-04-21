@@ -38,94 +38,95 @@ This project reflects real-world enterprise backend architecture used in banking
 ```mermaid
 flowchart TD
 
-    A[Client Application]
+    %% ================= CLIENT =================
+    A[Client / Frontend] --> B[Spring Boot Payment Service]
 
-    A -->|POST /auth/login| AUTH[Authentication API]
-    A -->|POST /payments / GET /payments| API[Payment REST API]
-    A -->|POST /api/v1/ai/support| AIWF[AI Support API - Workflow Mode]
-    A -->|POST /api/v1/ai/support/agent| AIAG[AI Support API - Agent Mode]
+    %% ================= CORE PAYMENT FLOW =================
+    subgraph CORE["Core Payment Processing"]
+        B --> RL["Redis Rate Limiter<br/>Token Bucket"]
+        RL -->|Allowed| AUTH["JWT Authentication"]
+        RL -->|Rejected| ERR[429 Too Many Requests]
 
-    AUTH --> JWT[JWT Token Generation]
-    JWT --> SEC[Spring Security Filter Chain]
+        AUTH --> CTRL[REST Controllers]
+        CTRL --> SVC[Service Layer]
 
-    API --> RL["Redis Rate Limiter (Token Bucket)"]
-    RL -->|Allowed| SEC
-    RL -->|Rejected| ERR[429 Too Many Requests]
+        SVC --> IDEMP[Idempotency Check]
+        IDEMP -->|Duplicate| CACHE[Return Cached Response]
+        IDEMP -->|New| TXN[Process Payment]
 
-    SEC --> CTRL[Controller Layer]
-    CTRL --> SVC[Service Layer]
-    SVC --> BL[Business Logic]
-    BL --> IDEMP[Idempotency Check]
+        TXN --> DB[(SQL Database)]
+        TXN --> OUTBOX[Transactional Outbox]
 
-    IDEMP -->|Duplicate| CACHED[Return Cached Response]
-    IDEMP -->|New Request| OUTBOX[Transactional Outbox]
+        OUTBOX --> KP[Kafka Producer]
+        KP --> TOPIC["Kafka Topic: payment.created"]
 
-    OUTBOX --> DB[(Database)]
-    OUTBOX --> KPROD[Kafka Producer]
-    KPROD --> TOPIC["Kafka Topic: payment.created"]
-    TOPIC --> KCONS[Kafka Consumer]
-    KCONS --> DOWN[Downstream Processing]
+        TOPIC --> KC[Kafka Consumer]
+        KC --> DOWNSTREAM[Notification / Audit Services]
 
-    SVC --> CB[Resilience4j Circuit Breaker]
-    SVC --> RETRY[Resilience4j Retry]
+        SVC --> CB[Resilience4j Circuit Breaker]
+        SVC --> RT[Resilience4j Retry]
+    end
 
-    subgraph AI_SUPPORT["AI Support Module"]
-        AIWF --> V1[Validate Request]
-        V1 --> C1[Classify Query]
-        C1 --> PC1[Retrieve Payment Context]
-        PC1 --> RAG1[RAG Retrieval]
-        RAG1 --> PB1[Build Prompt]
-        PB1 --> LLM1[OpenAI Chat API]
-        LLM1 --> RV1[Validate Response]
+    %% ================= AI ENTRY =================
+    B --> AICTRL["AI Support Controller<br/>/ai/support & /ai/support/agent"]
+
+    %% ================= WORKFLOW MODE =================
+    subgraph WF["AI WORKFLOW Mode (Deterministic RAG Pipeline)"]
+        AICTRL --> V1[Validate Request]
+        V1 --> SAFE1[Prompt Safety Check]
+        SAFE1 --> QC1[Query Classification]
+
+        QC1 --> PCR[Fetch Payment Context]
+        PCR --> DB
+
+        QC1 --> RAG[RAG Retrieval]
+        RAG --> EMB[Embedding Service]
+        EMB --> VS[Vector Store]
+
+        PCR --> PB[Prompt Builder]
+        RAG --> PB
+
+        PB --> LLM1[LLM Call (OpenAI)]
+        LLM1 --> RV1[Response Validation]
         RV1 --> RESP1[AI Response]
+    end
 
-        AIAG --> V2[Validate Request]
-        V2 --> C2[Classify Query]
-        C2 --> ORCH[AgentOrchestrator max 5 steps]
-        ORCH --> EXEC[AgentExecutor Think → Act → Observe]
-        EXEC --> TOOLS[AgentToolRegistry]
-        TOOLS --> PT[PaymentContextTool]
-        TOOLS --> KT[KnowledgeRagTool]
-        TOOLS --> FT[FinalAnswerTool]
-        KT --> RAG2[Vector Search / Knowledge Retrieval]
-        PT --> DB
-        EXEC --> LLM2[OpenAI Chat API]
-        LLM2 --> RV2[Validate Response]
+    %% ================= AGENT MODE =================
+    subgraph AG["AI AGENT Mode (ReAct Loop)"]
+        AICTRL --> V2[Validate Request]
+        V2 --> SAFE2[Prompt Safety Check]
+        SAFE2 --> QC2[Query Classification]
+
+        QC2 --> ORCH[Agent Orchestrator]
+        ORCH --> EXEC[Agent Executor<br/>Think → Act → Observe]
+
+        EXEC --> TOOLREG[Tool Registry]
+
+        TOOLREG --> T1[Payment Context Tool]
+        T1 --> DB
+
+        TOOLREG --> T2[Knowledge RAG Tool]
+        T2 --> EMB
+        T2 --> VS
+
+        TOOLREG --> T3[Final Answer Tool]
+
+        T3 --> RV2[Response Validation]
         RV2 --> RESP2[AI Response]
     end
 
-    subgraph RAG_PIPELINE["RAG Pipeline"]
-        DOC[Raw Documents] --> CHUNK[DocumentChunker]
-        CHUNK --> EMB[EmbeddingService]
-        EMB --> VS[VectorStoreService]
-        VS --> RET[RagRetriever]
+    %% ================= DEPLOYMENT =================
+    subgraph CLOUD["Cloud & Deployment"]
+        GIT[GitHub]
+        CI[Azure DevOps CI/CD]
+        DOCKER[Docker]
+        K8S[Kubernetes / AKS]
+        APP[Azure App Service / AKS]
+        MON[Application Insights]
     end
 
-    RAG1 --> RET
-    RAG2 --> RET
-
-    subgraph CLOUD["Cloud Deployment"]
-        DOCKER[Docker] --> K8S[Kubernetes]
-        K8S --> AZ["Azure App Service / AKS"]
-    end
-
-    API --> DOCKER
-    AIWF --> DOCKER
-    AIAG --> DOCKER
-
-    subgraph DEVOPS["DevOps"]
-        GH[GitHub] --> PIPE[Azure DevOps Pipeline]
-        PIPE --> DOCKER
-    end
-
-    subgraph MONITORING["Monitoring"]
-        APPINSIGHTS[Azure Application Insights]
-        LOGS[Azure Log Analytics]
-    end
-
-    API --> APPINSIGHTS
-    AIWF --> APPINSIGHTS
-    AIAG --> APPINSIGHTS
+    GIT --> CI --> DOCKER --> K8S --> APP
+    B --> MON
 ```
 
 ---
